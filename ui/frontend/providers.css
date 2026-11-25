@@ -94,6 +94,19 @@
   font-size: 12px;
   padding: 6px 10px;
 }
+.source-search-url {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+.source-search-url-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.source-search-url-field .ui-input {
+  flex: 1;
+  margin: 0;
+}
 .source-health details {
   font-size: 12px;
   margin-top: 8px;

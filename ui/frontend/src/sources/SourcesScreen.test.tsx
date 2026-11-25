@@ -57,6 +57,40 @@ async function edit(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
 }
 
 describe('source editors', () => {
+  it('counts only the eligible candidates for a saved Wallhaven search', async () => {
+    const api = installBridge(),
+      user = userEvent.setup();
+    api.Configuration.mockResolvedValue({
+      configuration: {
+        ...structuredClone(configuration),
+        searches: [
+          {
+            id: 'space',
+            name: 'Space',
+            query: '',
+            enabled: true,
+            input_enabled: true,
+            categories: '100',
+            purity: '100',
+            sorting: 'relevance',
+            order: 'desc',
+            max_pages: 20,
+            top_range: '1M',
+            refresh_interval: '5m',
+          },
+        ],
+      },
+    });
+    await ready();
+    await edit(user, /^Edit Wallhaven search Space/);
+    await user.click(screen.getByRole('button', { name: 'Count eligible candidates' }));
+    expect(await screen.findByText('7 eligible candidates of 221 discovered')).toBeVisible();
+    expect(api.CountSearchCandidates).toHaveBeenCalledWith('space', configuration.revision);
+    expect(api.UpdateSearch).not.toHaveBeenCalled();
+    await user.type(screen.getByRole('textbox', { name: /Search terms/ }), 'stars');
+    expect(screen.queryByText('7 eligible candidates of 221 discovered')).not.toBeInTheDocument();
+  });
+
   it('shows source types from the header without opening an editor and returns focus on Escape', async () => {
     const api = installBridge();
     const user = userEvent.setup();

@@ -55,6 +55,17 @@ export function bridge<K extends keyof Bridge>(
   return Reflect.apply(client[method], client, args || []) as ReturnType<Bridge[K]>;
 }
 
+export async function copyText(text: string): Promise<void> {
+  const native = (
+    window as Window & { runtime?: { ClipboardSetText(value: string): Promise<boolean> } }
+  ).runtime;
+  if (native?.ClipboardSetText) {
+    if (!(await native.ClipboardSetText(text))) throw new Error('Could not write to clipboard.');
+  } else {
+    await navigator.clipboard.writeText(text);
+  }
+}
+
 // One coordinator per window. It owns client requests, never service scheduling.
 // Keeping the current snapshot synchronous lets a queued action recheck fresh reads
 // before React has committed the corresponding render.

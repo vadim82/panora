@@ -431,6 +431,13 @@ export interface Bridge {
   AddFolderSettings(edit: FolderEdit): Promise<Result>;
   UpdateFolder(edit: FolderEdit): Promise<Result>;
   RemoveFolder(edit: { revision: string; id: string }): Promise<Result>;
+  CountSearchCandidates(
+    id: string,
+    revision: string,
+  ): Promise<{
+    counts?: { discovered: number; eligible: number | null; search_url?: string };
+    error?: string;
+  }>;
   AddSearch(edit: SearchEdit): Promise<Result>;
   UpdateSearch(edit: SearchEdit): Promise<Result>;
   RemoveSearch(edit: { revision: string; id: string }): Promise<Result>;

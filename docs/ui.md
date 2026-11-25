@@ -129,6 +129,11 @@ display into that search. **Use theme palette** copies the current Omarchy
 swatches into the draft. You can toggle the swatches before saving. Wallhaven
 matches any selected color using its closest supported swatches.
 
+In a saved Wallhaven search, choose **Count eligible candidates** to see how many
+discovered wallpapers are in the candidate pool after image rules and
+exclusions. This uses the images Panora has already discovered. Panora verifies
+originals when it selects them for playback.
+
 Open the **Omarchy theme** row to see the active theme, its palette, and the
 total and eligible still counts. Use **View all** to browse the larger
 collection. The common **Image rules** control starts with shared rules and
@@ -141,6 +146,8 @@ Use **Rename** to set a display name or clear it to show the search terms or
 timing.
 
 Open **Source troubleshooting** to see the latest checks and refresh the status.
+For a saved Wallhaven search, **Show Wallhaven URL** gives you a browser URL you
+can copy. Panora still applies local eligibility rules after discovery.
 The **Check sources** shortcut on Now opens and focuses that disclosure.
 
 A rejected rotation change retains the saved value and offers **Retry** in

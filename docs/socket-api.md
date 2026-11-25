@@ -428,8 +428,9 @@ count. The route reads discovery-prepared thumbnails and rules.
 | `POST /v1/configuration/searches` | Add a search with `revision` and optional supported settings |
 | `PATCH /v1/configuration/searches` | Edit with `revision`, `id` and at least one supported setting |
 | `DELETE /v1/configuration/searches` | Remove with a `revision`/`id` object; preserve history and provenance |
+| `GET /v1/wallhaven/candidates?id=…&revision=…` | Count discovered and currently eligible candidates for a saved and enabled search |
 
-Each response returns the updated configuration, including `searches` summaries.
+Each edit returns the updated configuration, including `searches` summaries.
 Names are separate from generated stable IDs. Summaries include the display `name`, saved `custom_name`, query, tags, effective `tag_match`, colors,
 resolved provider settings, effective `enabled`, saved `input_enabled`, effective
 refresh interval and fixed `purity: "sfw"`. Discovery health reports availability
@@ -456,6 +457,15 @@ The same 16 KiB limit, strict JSON decoding, revision conflict handling and
 no-retry rule as [folder/preference routes](#configuration-routes) apply.
 `search_not_found` returns HTTP 404. Credentials and purity controls are rejected.
 See [Wallhaven](providers/wallhaven.md#search-settings) for supported values.
+
+The candidate count is a read-only snapshot of the current source revision's
+catalog. It returns `version`, `discovered`, nullable `eligible`,
+`rule_resolution`, and the browser `search_url` when available. Eligibility
+applies the search's effective image rules and active exclusions using known
+dimensions. The URL includes the upstream filters and opens Wallhaven's
+results page. An unresolved ratio returns a null
+`eligible` field. This read leaves discovery, playback, and the cache alone.
+Originals still undergo full validation at selection time.
 
 ### Exclusion routes
 

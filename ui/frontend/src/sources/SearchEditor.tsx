@@ -275,6 +275,13 @@ export function SearchEditor({ search, mutable, onDirty, onCancel, onSaved }: Pr
             cancel.
           </p>
         )}
+        {!dirty && saved?.enabled && ui.connected && !ui.blocked && (
+          <SearchCandidateCount
+            key={`${ui.snapshot?.status?.instance_id}/${saved.id}/${revision}`}
+            id={saved.id}
+            revision={revision}
+          />
+        )}
         <Notice id="search-notice" hidden={!notice}>
           {notice}
         </Notice>
@@ -365,6 +372,38 @@ export function SearchEditor({ search, mutable, onDirty, onCancel, onSaved }: Pr
           />
         </fieldset>
       </form>
+    </div>
+  );
+}
+
+function SearchCandidateCount({ id, revision }: { id: string; revision: string }) {
+  const ui = usePanora();
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState('');
+
+  async function count() {
+    setPending(true);
+    setMessage('');
+    const result = await ui.request('CountSearchCandidates', [id, revision]);
+    const counts = result.counts;
+    setMessage(
+      counts
+        ? counts.eligible == null
+          ? 'Could not resolve the screen shape to count eligible candidates.'
+          : `${counts.eligible} eligible candidates of ${counts.discovered} discovered`
+        : result.error || 'The candidate count is unavailable.',
+    );
+    setPending(false);
+  }
+
+  return (
+    <div className="search-candidate-count">
+      <Button pending={pending} disabled={ui.busy} onClick={() => void count()}>
+        {pending ? 'Counting candidates…' : 'Count eligible candidates'}
+      </Button>
+      <span className="subtext" role="status">
+        {message}
+      </span>
     </div>
   );
 }

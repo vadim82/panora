@@ -59,11 +59,11 @@ An omitted `max_pages` uses 20; an explicit value must be 1–100. Empty refresh
 interval inherits the provider schedule. Labels have a 256-byte limit without
 NUL or newlines. Existing id/query-only TOML keeps its defaults and stable IDs.
 
-Panora prefixes structured tags with `+` and places the free-text query after
-them. With **All**, tags `mountains` and `night sky` and keywords `city -cars`
-send `+mountains +"night sky" city -cars` in one query. With **Any**, Panora
-searches `+mountains city -cars` and `+"night sky" city -cars` and combines
-the results by stable image ID. Zero or one tag works the same in either mode.
+Panora prefixes structured tags with `+` and combines them with the free-text
+query. With **All**, tags `mountains` and `night sky` and terms `city -cars`
+send `+mountains +"night sky" city -cars`. With **Any**, Panora sends
+`(+mountains | +"night sky") city -cars`. Wallhaven's public search API accepts
+`|` for tag alternatives. Zero or one tag works the same in either mode.
 The standalone Wallhaven `id:123` syntax cannot be combined with tags.
 See [tag entry and suggestion availability](wallhaven-tags.md).
 
@@ -85,10 +85,9 @@ checks the [5% tolerance](../configuration.md#match-monitor) locally against
 the current display.
 
 Each selected color maps to the nearest supported Wallhaven swatch by squared
-RGB distance, using the published swatch order to break ties. Colors that map
-to the same swatch share a query. Panora sends one `colors` value per request
-and combines results across swatches. Matching uses Wallhaven’s search results.
-The source keeps the original selected hex values so they remain editable.
+RGB distance, using the published swatch order to break ties. Panora sends
+distinct swatches in one comma-separated `colors` value. Wallhaven matches any
+of the listed swatches. The source keeps the original hex values for editing.
 
 ## Read-only discovery
 
@@ -126,33 +125,19 @@ Links with credentials, queries, or fragments are omitted.
 
 ## Paging and failures
 
-Wallhaven returns up to 24 rows per request. A branch pairs each distinct
-upstream color with either all selected tags in **All** mode or one selected
-tag in **Any** mode. One branch suffices when a search has neither color nor
-multiple Any tags. Each branch receives `max_pages` divided by the number of
-branches, rounded down with a minimum of one. For example, two Any tags and
-three distinct swatches with `max_pages = 20` get up to three pages each.
-When the number of branches exceeds the page limit, each branch gets one page.
+Wallhaven returns up to 24 rows per request. Panora sends one combined search
+and fetches up to `max_pages` pages in Wallhaven's configured sort order.
+Wallhaven ranks matches across all selected tags and swatches. The catalog
+deduplicates wallpaper IDs across pages and searches.
 
-Multi-tag Any searches fetch at most four branch pages per discovery call,
-cycling through all branches at each upstream page number. Other searches
-continue to fetch up to six swatch pages per call. Every request uses the
-configured sort and direction. For multi-tag Any, Panora merges the current
-batch by date, views or favorites when that metric is selected. For relevance,
-toplist and random it interleaves branch ranks, because the API returns no
-comparable scores. The combined ordering is batch-local. A returned page lists
-each image ID once, and all batches, upstream pages and searches share that
-image’s catalog identity.
-
-A cursor binds discovery settings and filter hints, tracks exhausted branches,
-and carries one Wallhaven random seed across all branch requests. Changing
-query inputs, tag match mode, or effective geometry restarts paging. Short
-provider calls can refetch their current batch to resume at its offset. Each
-call shares a 10-second deadline across requests. A failed branch discards
-the current batch, leaving earlier commits available. The service honors retry
-limits and resumes from its last committed cursor. Resolution makes one
-request with a 10-second timeout. Each response is limited to 1 MiB and
-redirects are rejected. A completed scan does not imply deletion.
+A cursor binds discovery settings and filter hints and carries the Wallhaven
+random seed between pages. Changing query inputs, tag match mode, or effective
+geometry restarts paging. An older cursor from before combined searches also
+restarts at page one. Short provider calls can refetch the current page to
+resume at its offset. Discovery and resolution each make one request per call
+with a 10-second timeout. The service honors retry limits and resumes from the
+last committed cursor. Each response is limited to 1 MiB and redirects are
+rejected. A completed scan does not imply deletion.
 
 | Outcome | Provider result |
 | --- | --- |

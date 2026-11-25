@@ -1,20 +1,17 @@
 package wallhaven
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/vadim82/panora/internal/catalog"
 	"github.com/vadim82/panora/internal/source"
 )
 
@@ -338,187 +335,83 @@ func TestFilterOnlyAndGeometryMappings(t *testing.T) {
 	requireKind(t, p.Validate(t.Context(), json.RawMessage(`{"tags":["+nature"]}`)), "invalid_config")
 }
 
-func TestWallhavenColorUnionAndPaginationBudget(t *testing.T) {
-	var requests []string
-	p := fixtureProvider(t, func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		color, page := q.Get("colors"), q.Get("page")
-		requests = append(requests, color+"/"+page)
-		switch color + "/" + page {
-		case "0066cc/1":
-			listingReply(w, 1, 1, "abc123", []map[string]any{item("aa0001"), item("aa0002")})
-		case "66cccc/1":
-			if q.Get("seed") != "abc123" {
-				t.Errorf("random seed lost across colors: %s", q.Get("seed"))
-			}
-			listingReply(w, 1, 3, "abc123", []map[string]any{item("aa0002"), item("aa0003")})
-		case "66cccc/2":
-			listingReply(w, 2, 3, "abc123", []map[string]any{item("aa0004")})
-		default:
-			t.Errorf("unexpected fanout request: %s", r.URL.RawQuery)
-			http.Error(w, "unexpected request", http.StatusBadRequest)
-		}
-	})
-	params := source.DiscoverParams{
-		Config: json.RawMessage(`{"query":"","categories":"000","colors":["#0066CC","#0167cd","#66cccc"],"max_pages":4,"sorting":"random"}`),
-		Limit:  100,
-	}
-	page, err := p.Discover(t.Context(), params)
-	if err != nil || len(page.Candidates) != 3 || page.Candidates[2].ID != "aa0003" || source.IsNull(page.NextCursor) {
-		t.Fatalf("color union: %+v %v", page, err)
-	}
-	params.Cursor = page.NextCursor
-	changed := params
-	changed.Config = json.RawMessage(`{"query":"","categories":"000","colors":["#424153"],"max_pages":4,"sorting":"random"}`)
-	_, err = p.Discover(t.Context(), changed)
-	requireKind(t, err, "invalid_cursor")
-	page, err = p.Discover(t.Context(), params)
-	if err != nil || len(page.Candidates) != 1 || page.Candidates[0].ID != "aa0004" || !source.IsNull(page.NextCursor) || len(requests) != 3 {
-		t.Fatalf("bounded fanout: %+v, requests: %v, err: %v", page, requests, err)
-	}
-}
-
-func TestWallhavenTagUnionAndIntersection(t *testing.T) {
-	shared, mountains, coast := item("aa0001"), item("aa0002"), item("aa0003")
-	shared["views"], mountains["views"], coast["views"] = 2, 1, 3
+func TestWallhavenCombinedQueryPaginationAndRetry(t *testing.T) {
 	var calls atomic.Int64
 	p := fixtureProvider(t, func(w http.ResponseWriter, r *http.Request) {
 		call := calls.Add(1)
 		q := r.URL.Query()
-		for key, value := range map[string]string{
-			"categories": "101", "purity": "100", "atleast": "1920x1080",
-			"ratios": "16x9", "sorting": "views", "order": "desc",
+		for key, want := range map[string]string{
+			"q": `(+mountains | +"night sky") (city | ocean)`, "colors": "0066cc,66cccc",
+			"categories": "111", "purity": "100", "atleast": "1920x1080",
+			"ratios": "16x9", "sorting": "random", "order": "desc",
 		} {
-			if q.Get(key) != value {
-				t.Errorf("%s: got %q, want %q", key, q.Get(key), value)
+			if got := q.Get(key); got != want {
+				t.Errorf("%s: got %q, want %q", key, got, want)
 			}
 		}
-		switch q.Get("q") + "/" + q.Get("colors") + "/" + q.Get("page") {
-		case "+mountains city -cars/0066cc/1":
-			listingReply(w, 1, 1, "", []map[string]any{shared, mountains})
-		case "+mountains city -cars/66cccc/1":
-			listingReply(w, 1, 1, "", []map[string]any{mountains})
-		case "+coast city -cars/0066cc/1":
-			if call == 3 {
-				w.Header().Set("Retry-After", "60")
-				w.WriteHeader(http.StatusTooManyRequests)
-				return
+		if call == 1 {
+			if q.Get("page") != "1" || q.Has("seed") {
+				t.Errorf("unexpected first page: %s", r.URL.RawQuery)
 			}
-			listingReply(w, 1, 2, "", []map[string]any{coast, shared})
-		case "+coast city -cars/0066cc/2":
-			listingReply(w, 2, 2, "", []map[string]any{item("aa0004")})
-		case "+coast city -cars/66cccc/1", "+mountains +coast city -cars/0066cc/1":
-			listingReply(w, 1, 1, "", []map[string]any{shared})
-		case "+mountains +coast city -cars/66cccc/1":
-			listingReply(w, 1, 1, "", []map[string]any{})
-		default:
-			t.Errorf("unexpected branch: %s", r.URL.RawQuery)
-			w.WriteHeader(http.StatusBadRequest)
+			listingReply(w, 1, 5, "abc123", []map[string]any{item("aa0002"), item("aa0001")})
+			return
 		}
-	})
-	config := Config{
-		Tags: []string{"mountains", "coast"}, TagMatch: "any",
-		Colors: []string{"#0066cc", "#66cccc"}, Query: "city -cars",
-		Categories: "101", Sorting: "views", Order: "desc", MaxPages: 8,
-	}
-	params := source.DiscoverParams{
-		Config: marshalConfig(t, config), Limit: 2,
-		Filter: &source.FilterHints{MinWidth: 1920, MinHeight: 1080, Ratio: &source.Dimensions{Width: 16, Height: 9}},
-	}
-	page, err := p.Discover(t.Context(), params)
-	typed := requireKind(t, err, "rate_limited")
-	if typed.RetryAfterSeconds == nil || *typed.RetryAfterSeconds != 60 || len(page.Candidates) != 0 || !source.IsNull(page.NextCursor) || calls.Load() != 3 {
-		t.Fatalf("failed branch published partial data or retried: %+v %v after %d calls", page, typed, calls.Load())
-	}
-	page, err = p.Discover(t.Context(), params)
-	if err != nil || len(page.Candidates) != 2 || page.Candidates[0].ID != coast["id"] ||
-		page.Candidates[1].ID != shared["id"] || source.IsNull(page.NextCursor) || calls.Load() != 7 {
-		t.Fatalf("first union page: %+v %v after %d calls", page, err, calls.Load())
-	}
-	params.Cursor = page.NextCursor
-	page, err = p.Discover(t.Context(), params)
-	if err != nil || len(page.Candidates) != 1 || page.Candidates[0].ID != mountains["id"] || source.IsNull(page.NextCursor) {
-		t.Fatalf("union continuation: %+v %v", page, err)
-	}
-	params.Cursor = page.NextCursor
-	page, err = p.Discover(t.Context(), params)
-	if err != nil || len(page.Candidates) != 1 || page.Candidates[0].ID != "aa0004" || !source.IsNull(page.NextCursor) || calls.Load() != 12 {
-		t.Fatalf("only the unexhausted tag/color branch should advance: %+v %v after %d calls", page, err, calls.Load())
-	}
-	config.TagMatch = "all"
-	params.Config = marshalConfig(t, config)
-	_, err = p.Discover(t.Context(), params)
-	requireKind(t, err, "invalid_cursor")
-	params.Cursor = nil
-	page, err = p.Discover(t.Context(), params)
-	if err != nil || len(page.Candidates) != 1 || page.Candidates[0].ID != shared["id"] || !source.IsNull(page.NextCursor) {
-		t.Fatalf("intersection: %+v %v", page, err)
-	}
-}
-
-func TestWallhavenAnyBranchBatchBudget(t *testing.T) {
-	const failureCall = maxAnyBatch + 2
-	var calls atomic.Int64
-	p := fixtureProvider(t, func(w http.ResponseWriter, r *http.Request) {
-		call := calls.Add(1)
-		q := r.URL.Query()
-		if q.Get("page") != "1" || call > 1 && q.Get("seed") != "abc123" {
-			t.Errorf("unexpected Any request: %s", r.URL.RawQuery)
+		if q.Get("page") != "2" || q.Get("seed") != "abc123" {
+			t.Errorf("unexpected continuation: %s", r.URL.RawQuery)
 		}
-		branchCall := call
-		switch {
-		case call == failureCall:
+		if call == 2 {
 			w.Header().Set("Retry-After", "60")
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
-		case call > failureCall:
-			branchCall -= 2 // The successful retry starts the second batch again.
 		}
-		listingReply(w, 1, 10, "abc123", []map[string]any{item(fmt.Sprintf("ab%04d", branchCall)), item("shared")})
+		listingReply(w, 2, 5, "abc123", []map[string]any{item("aa0003")})
 	})
 	config := Config{
-		TagMatch: "any", Sorting: "random", MaxPages: 1,
-		Colors: []string{"#660000", "#cc0000", "#000000", "#ffffff", "#0099cc", "#cc6633"},
+		Query: "city | ocean", Tags: []string{"mountains", "night sky"}, TagMatch: "any",
+		Colors: []string{"#0066CC", "#0167cd", "#66cccc"}, Categories: "000",
+		Sorting: "random", MaxPages: 2,
 	}
-	for tag := range source.MaxWallhavenTags {
-		config.Tags = append(config.Tags, fmt.Sprintf("tag%d", tag))
+	params := source.DiscoverParams{
+		Config: marshalConfig(t, config), Limit: 100,
+		Filter: &source.FilterHints{MinWidth: 1920, MinHeight: 1080, Ratio: &source.Dimensions{Width: 16, Height: 9}},
 	}
-	params := source.DiscoverParams{Config: marshalConfig(t, config), Limit: 100}
-	store, err := catalog.Open(t.Context(), filepath.Join(t.TempDir(), "scan.db"))
-	if err != nil {
-		t.Fatal(err)
+	page, err := p.Discover(t.Context(), params)
+	if err != nil || len(page.Candidates) != 2 || page.Candidates[0].ID != "aa0002" ||
+		page.Candidates[1].ID != "aa0001" || source.IsNull(page.NextCursor) || calls.Load() != 1 {
+		t.Fatalf("first page: %+v %v after %d calls", page, err, calls.Load())
 	}
-	t.Cleanup(func() { _ = store.Close() })
-	scan, err := store.StartScan(t.Context(), "wallhaven", "search", "r1", false)
-	if err != nil {
-		t.Fatal(err)
+	params.Cursor = page.NextCursor
+	page, err = p.Discover(t.Context(), params)
+	typed := requireKind(t, err, "rate_limited")
+	if typed.RetryAfterSeconds == nil || *typed.RetryAfterSeconds != 60 || len(page.Candidates) != 0 ||
+		!source.IsNull(page.NextCursor) || calls.Load() != 2 {
+		t.Fatalf("failed page: %+v %v after %d calls", page, err, calls.Load())
 	}
-	branches := len(config.Tags) * len(config.Colors)
-	batches := branches / maxAnyBatch
-	extraCalls := 0
-	for batch := 1; batch <= batches; batch++ {
-		if batch == 2 {
-			failedPage, err := p.Discover(t.Context(), params)
-			requireKind(t, err, "rate_limited")
-			checkpoint, err := store.StartScan(t.Context(), "wallhaven", "search", "r1", false)
-			if err != nil || !bytes.Equal(checkpoint.Cursor, params.Cursor) || len(failedPage.Candidates) != 0 || calls.Load() != failureCall {
-				t.Fatalf("failed batch changed its checkpoint or exposed candidates: %+v %+v %v", checkpoint, failedPage, err)
+	page, err = p.Discover(t.Context(), params)
+	if err != nil || len(page.Candidates) != 1 || page.Candidates[0].ID != "aa0003" ||
+		!source.IsNull(page.NextCursor) || calls.Load() != 3 {
+		t.Fatalf("retried final page: %+v %v after %d calls", page, err, calls.Load())
+	}
+}
+
+func TestWallhavenSearchQuery(t *testing.T) {
+	tags := []string{"mountains", "night sky"}
+	for _, tc := range []struct {
+		name   string
+		config Config
+		want   string
+	}{
+		{"free text only", Config{Query: "  +space | +stars  "}, "+space | +stars"},
+		{"any tags", Config{Tags: tags, TagMatch: "any"}, `+mountains | +"night sky"`},
+		{"one any tag", Config{Tags: tags[:1], TagMatch: "any", Query: "city -cars"}, "+mountains city -cars"},
+		{"all tags", Config{Tags: tags, TagMatch: "all", Query: "city | ocean"}, `+mountains +"night sky" (city | ocean)`},
+		{"literal operators in tag", Config{Tags: []string{"artist (name)", "a|b"}}, `+"artist (name)" +"a|b"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := searchQuery(tc.config); got != tc.want {
+				t.Errorf("q = %q, want %q", got, tc.want)
 			}
-			extraCalls = 2
-		}
-		page, err := p.Discover(t.Context(), params)
-		if err != nil || len(page.Candidates) != maxAnyBatch+1 || len(page.NextCursor) > source.MaxCursorBytes ||
-			calls.Load() != int64(batch*maxAnyBatch+extraCalls) || source.IsNull(page.NextCursor) != (batch == batches) {
-			t.Fatalf("batch %d: %+v %v after %d calls", batch, page, err, calls.Load())
-		}
-		if _, err := store.CommitPage(t.Context(), scan, "", page); err != nil {
-			t.Fatal(err)
-		}
-		params.Cursor, scan.Cursor = page.NextCursor, page.NextCursor
-	}
-	committed, err := store.Candidates(t.Context(), "wallhaven", "search", "r1", branches+1)
-	if err != nil || len(committed) != branches+1 {
-		t.Fatalf("cross-batch candidate IDs were not merged: %d candidates after %d requests: %v", len(committed), calls.Load(), err)
+		})
 	}
 }
 

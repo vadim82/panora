@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import { bridge, usePanora } from '../client';
+import { bridge, copyText, usePanora } from '../client';
 import type { BuildIdentity } from '../types';
-
-type ClipboardRuntime = { ClipboardSetText(text: string): Promise<boolean> };
 
 export function AboutScreen() {
   const { navigate } = usePanora();
@@ -34,14 +32,8 @@ export function AboutScreen() {
     for (const [label, value] of rows) {
       if (value) lines.push(`${label}: ${value}`);
     }
-    const text = lines.join('\n');
-    const native = (window as Window & { runtime?: ClipboardRuntime }).runtime;
     try {
-      if (native?.ClipboardSetText) {
-        if (!(await native.ClipboardSetText(text))) throw new Error();
-      } else {
-        await navigator.clipboard.writeText(text);
-      }
+      await copyText(lines.join('\n'));
       setNotice('Version details copied.');
     } catch {
       setNotice('Select the version details to copy them.');

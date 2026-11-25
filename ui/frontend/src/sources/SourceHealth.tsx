@@ -1,6 +1,6 @@
-import { Button, Notice } from '../components/ui';
+import { Button, Notice, TextInput } from '../components/ui';
 import { useRef, useState } from 'react';
-import { usePanora } from '../client';
+import { copyText, usePanora } from '../client';
 import { playbackWarnings } from '../now/playbackWarnings';
 import type { Configuration, Failure, ProviderHealth, Retry } from '../types';
 
@@ -292,6 +292,14 @@ export function SourceHealth({ onReview }: { onReview(provider: string, id: stri
                         {provider.id === 'local' ? 'Review folder' : 'Review search'}
                       </Button>
                     )}
+                    {search?.enabled && configuration && (
+                      <WallhavenSearchURL
+                        key={`${status?.instance_id}/${search.id}/${configuration.revision}`}
+                        id={search.id}
+                        revision={configuration.revision}
+                        disabled={disabled}
+                      />
+                    )}
                     {input.failure?.code === 'filter_mismatch' && (
                       <Button
                         className="outline"
@@ -329,5 +337,72 @@ export function SourceHealth({ onReview }: { onReview(provider: string, id: stri
         display. Panora checks sources automatically, even while rotation is paused.
       </p>
     </details>
+  );
+}
+
+function WallhavenSearchURL({
+  id,
+  revision,
+  disabled,
+}: {
+  id: string;
+  revision: string;
+  disabled: boolean;
+}) {
+  const ui = usePanora();
+  const [url, setURL] = useState('');
+  const [notice, setNotice] = useState('');
+  const [loading, setLoading] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+
+  async function show() {
+    setLoading(true);
+    setNotice('');
+    const result = await ui.request('CountSearchCandidates', [id, revision]);
+    const value = result.counts?.search_url;
+    if (value) setURL(value);
+    else setNotice(result.error || 'The Wallhaven URL is unavailable.');
+    setLoading(false);
+  }
+
+  async function copy() {
+    try {
+      await copyText(url);
+      setNotice('Wallhaven URL copied.');
+    } catch {
+      field.current?.focus();
+      field.current?.select();
+      setNotice('Copy the selected URL.');
+    }
+  }
+
+  return (
+    <>
+      <Button className="outline" disabled={disabled} pending={loading} onClick={() => void show()}>
+        {loading ? 'Loading search URL…' : url ? 'Refresh Wallhaven URL' : 'Show Wallhaven URL'}
+      </Button>
+      {url && (
+        <div className="source-search-url">
+          <div className="source-search-url-field">
+            <TextInput
+              aria-label="Wallhaven search URL"
+              onFocus={(event) => event.currentTarget.select()}
+              ref={field}
+              value={url}
+              readOnly
+            />
+            <Button className="outline" onClick={() => void copy()}>
+              Copy URL
+            </Button>
+          </div>
+          <p className="subtext">Panora applies local eligibility checks after discovery.</p>
+        </div>
+      )}
+      {notice && (
+        <p className="source-search-url" role="status">
+          {notice}
+        </p>
+      )}
+    </>
   );
 }
