@@ -10,6 +10,22 @@ for archive preparation. Public ad-hoc previews document the supported
 architecture, minimum macOS version, checksum, and Gatekeeper behavior in
 the release notes. Notarized releases require Developer ID signing.
 
+## Draft a release on GitHub
+
+Once the **Go** workflow passes on `main`, open **Actions → Draft release →
+Run workflow**. Select `main` and enter the version as `X.Y.Z`. The workflow
+builds the same commit for Arch x86-64 and Apple silicon, checks both receipts,
+and attaches the packages, source archive, and checksums to one draft. The
+draft job refuses to reuse an existing release or tag. For a rehearsal,
+select **Build and stage artifacts without creating a GitHub draft** and
+download the staged files from the workflow run.
+
+Review the draft notes and test the packages in isolated environments before
+publishing. The macOS ZIP is an ad-hoc signed preview. Its receipt and draft
+notes record the minimum macOS version, and Gatekeeper may block the download.
+Once the stable release is published, the Homebrew workflow prepares a patch
+for the formula.
+
 ## Stage a shared release
 
 Build the Arch package and macOS archive from the same Git commit and with
