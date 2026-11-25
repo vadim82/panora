@@ -1,0 +1,138 @@
+name: Homebrew formula
+
+on:
+  pull_request:
+    paths:
+      - "Formula/panora.rb"
+      - ".github/workflows/homebrew.yml"
+      - "tools/check_macos_bundle.py"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Prepare a formula patch for this published tag (optional)
+        type: string
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    if: github.event_name != 'release' && !inputs.release_tag
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.8"
+      - name: Install with Homebrew and exercise the installed app
+        shell: bash
+        run: |
+          [[ "$(uname -m)" == arm64 ]]
+          brew tap vadim82/panora "$GITHUB_WORKSPACE"
+          brew trust --formula vadim82/panora/panora
+          brew install --build-from-source panora
+          brew test panora
+          python3 tools/check_macos_bundle.py "$(brew --prefix panora)/libexec/Panora.app"
+
+  archive:
+    if: github.event_name != 'release' && !inputs.release_tag
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve the formula's pinned release
+        id: source
+        shell: bash
+        run: |
+          [[ "$(uname -m)" == arm64 ]]
+          tag=$(sed -nE 's/^ *tag: +"(v[0-9.]+)",$/\1/p' Formula/panora.rb)
+          expected=$(sed -nE 's/^ *revision: +"([a-f0-9]+)"$/\1/p' Formula/panora.rb)
+          [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$expected" =~ ^[0-9a-f]{40}$ ]]
+          revision=$(git rev-parse --verify "refs/tags/$tag^{commit}")
+          [[ "$revision" == "$expected" ]]
+          git show "$revision:go.mod" > "$RUNNER_TEMP/release-go.mod"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.8"
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: ${{ runner.temp }}/release-go.mod
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "26.13.1"
+      - name: Install Corepack
+        run: npm install --global corepack@0.36.0
+      - name: Build and verify an ad-hoc signed archive
+        shell: bash
+        env:
+          VERSION: ${{ steps.source.outputs.version }}
+          REVISION: ${{ steps.source.outputs.revision }}
+        run: |
+          output="$RUNNER_TEMP/macos-release"
+          python3 packaging/macos/build-release.py "$REVISION" "$VERSION" "$output"
+          cd "$output"
+          shasum -a 256 -c SHA256SUMS.macos-arm64
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: panora-v${{ steps.source.outputs.version }}-macos-arm64-adhoc
+          path: ${{ runner.temp }}/macos-release
+          if-no-files-found: error
+          compression-level: 0
+
+  release-update:
+    if: (github.event_name == 'release' && !github.event.release.prerelease) || inputs.release_tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Prepare an update for the published tag
+        id: formula
+        shell: bash
+        env:
+          TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$(gh release view "$TAG" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" == false ]]
+          revision=$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          current=$(sed -nE 's/^ *tag: +"(v[0-9.]+)",$/\1/p' Formula/panora.rb)
+          [[ "$current" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ "$current" == "$TAG" || "$(printf '%s\n' "$current" "$TAG" | sort -V | tail -1)" != "$TAG" ]]; then
+            echo "The formula already tracks Panora $current."
+            exit 0
+          fi
+          sed -i -E \
+            -e 's/^( *tag: +)"v[0-9.]+",$/\1"'"$TAG"'",/' \
+            -e 's/^( *revision: +)"[0-9a-f]{40}"$/\1"'"$revision"'"/' Formula/panora.rb
+          grep -Eq 'tag: +"'"$TAG"'"' Formula/panora.rb
+          grep -Eq 'revision: +"'"$revision"'"' Formula/panora.rb
+          git diff --check
+          ruby -c Formula/panora.rb
+          git diff -- Formula/panora.rb > "$RUNNER_TEMP/homebrew-formula-update.patch"
+          echo "Download the formula patch and open a PR for the native Homebrew check." >> "$GITHUB_STEP_SUMMARY"
+          echo "updated=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.formula.outputs.updated == 'true'
+        with:
+          name: homebrew-formula-update
+          path: ${{ runner.temp }}/homebrew-formula-update.patch
+          if-no-files-found: error
