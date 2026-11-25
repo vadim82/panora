@@ -18,6 +18,7 @@ pre { overflow: auto; padding: 1rem; background: #f0f2f3; color: #202426; border
 <p>After verifying the fingerprint, add the key to your pacman keyring and trust it locally.</p>
 <pre><code>sudo pacman-key --add ./panora-signing-key.asc
 sudo pacman-key --lsign-key 8E2A94B8A2B91252C5B347FF787956F904D9C8B6</code></pre>
+<p>If you added the original v0.7.0 key, download the current public key and run <code>sudo pacman-key --add ./panora-signing-key.asc</code> again before upgrading. The updated certificate includes the release signing subkey and keeps the same primary fingerprint.</p>
 <p>Append this <a href="arch/panora.conf">repository entry</a> to <code>/etc/pacman.conf</code>. Panora requires valid signatures for packages and the repository database.</p>
 <pre><code>[panora]
 SigLevel = Required TrustedOnly
