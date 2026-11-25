@@ -49,7 +49,7 @@ func newScanCommand() *cobra.Command {
 				minHeight = config.Filters.MinHeight
 			}
 			if override {
-				ratio = overrideRatio
+				ratio = overrideRatio.WithTolerancePixels(config.RatioTolerancePixels())
 			} else {
 				ratioText = config.Filters.Ratio
 			}

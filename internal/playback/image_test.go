@@ -36,7 +36,7 @@ func TestMatchesAspectRatio(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.image.matchesAspectRatio(tt.ratio)
+			got := tt.image.matchesRatio(tt.ratio, false, 1)
 			if got != tt.want {
 				t.Errorf("image %dx%d, ratio %d:%d: got %t, want %t",
 					tt.image.Width, tt.image.Height, tt.ratio.Width, tt.ratio.Height, got, tt.want)
@@ -87,7 +87,7 @@ func TestMatchesAspectRatioIntegerBoundaries(t *testing.T) {
 		{"large negative difference", ImageInfo{Width: 1, Height: maxInt}, AspectRatio{maxInt, 1}, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if got := test.image.matchesAspectRatio(test.ratio); got != test.want {
+			if got := test.image.matchesRatio(test.ratio, false, 1); got != test.want {
 				t.Fatalf("%+v ratio %+v: got %v, want %v", test.image, test.ratio, got, test.want)
 			}
 		})

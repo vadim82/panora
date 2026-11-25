@@ -87,11 +87,12 @@ type Config struct {
 	} `toml:"cache"`
 	Providers []ProviderConfig `toml:"providers"`
 	Filters   struct {
-		MaxDepth     int      `toml:"max_depth"`
-		MinWidth     int      `toml:"min_width"`
-		MinHeight    int      `toml:"min_height"`
-		Ratio        string   `toml:"ratio"`
-		RatioPresets []string `toml:"ratio_presets,omitempty"`
+		MaxDepth             int      `toml:"max_depth"`
+		MinWidth             int      `toml:"min_width"`
+		MinHeight            int      `toml:"min_height"`
+		Ratio                string   `toml:"ratio"`
+		RatioPresets         []string `toml:"ratio_presets,omitempty"`
+		RatioTolerancePixels *int     `toml:"ratio_tolerance_pixels,omitempty"`
 	} `toml:"filters"`
 }
 
@@ -141,6 +142,14 @@ func DefaultConfig() Config {
 	config.Filters.MinHeight = 1
 	config.Filters.Ratio = "any"
 	return config
+}
+
+// RatioTolerancePixels applies to all aspect ratios matched in pixels.
+func (c Config) RatioTolerancePixels() int {
+	if c.Filters.RatioTolerancePixels != nil {
+		return *c.Filters.RatioTolerancePixels
+	}
+	return defaultRatioTolerancePixels
 }
 
 func (c Config) HasEnabledInputs() bool {
@@ -228,7 +237,10 @@ func ParseConfig(data []byte) (Config, *RatioRule, error) {
 	if config.Filters.MaxDepth < 0 || config.Filters.MinWidth <= 0 || config.Filters.MinHeight <= 0 {
 		return config, nil, fmt.Errorf("filters require non-negative max_depth and positive minimum dimensions")
 	}
-	ratio, err := ParseRatioRule(config.Filters.Ratio, config.Filters.RatioPresets)
+	if !validRatioTolerance(config.RatioTolerancePixels()) {
+		return config, nil, fmt.Errorf("filters.ratio_tolerance_pixels: %s", ratioToleranceError)
+	}
+	ratio, err := parseRatioRule(config.Filters.Ratio, config.Filters.RatioPresets, config.RatioTolerancePixels())
 	if err != nil {
 		return config, nil, err
 	}

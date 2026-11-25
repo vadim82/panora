@@ -204,6 +204,7 @@ Provider/input edits and arbitrary TOML are not accepted.
 | --- | --- |
 | `min_width`, `min_height` | Positive integers; next playback action |
 | `ratio`, `ratio_presets` | `any`, a positive integer custom ratio, `monitor`, `monitor-similar`, or `presets` with a nonempty supported preset array; next playback action |
+| `ratio_tolerance_pixels` | Nonnegative safe integer, default 10. Applies to pixel-based ratio checks for all sources on the next playback action |
 | `max_depth` | Nonnegative global folder depth; discovery reconciles it |
 | `backend`, `fit`, `upscale` | Validate readiness and presentation support before saving; apply explicit fields to the next wallpaper action without reapplying the current image |
 | `rotation_mode` | `balance_sources` (default) or `shuffle_all_images`. Applies to fresh Next and scheduled choices without changing the current image, history cursor, or rotation deadline |
@@ -256,6 +257,8 @@ draft, call providers, download/recover originals, change cache recency or send 
 desktop request. It accepts at most 16 KiB, rejects unknown/duplicate/null fields
 in both objects and takes no query parameters. Revisions use the configuration
 API's exact-byte snapshot; stale revisions return `config_conflict` (409).
+The optional `rules.ratio_tolerance_pixels` previews a different pixel
+tolerance. An omitted value uses the saved tolerance for the reviewed revision.
 
 To inspect one saved source, add both `provider_id` and `input_id` to the
 request. The response echoes them and uses `scope:"source_catalog"`; it inspects

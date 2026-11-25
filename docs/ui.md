@@ -62,6 +62,8 @@ The title and navigation tabs stay visible as you scroll each section.
   the wallpaper.
   **Shared image filters** sets minimum resolution and aspect ratio for sources
   that inherit [shared rules](configuration.md#image-rules-for-each-source).
+  **Aspect ratio tolerance (pixels)** applies to pixel-based aspect ratios
+  across all sources and defaults to 10.
   Choose a resolution preset or use **Custom size**. **Startup** contains
   **Start Panora at login** and platform-specific service controls for
   [Omarchy](arch.md#install-upgrade-and-remove) and
@@ -122,8 +124,8 @@ saves. The summary shows **Tags · Any** or **Tags · All** separately from
 With no categories selected, Panora searches all three safe-for-work categories.
 In **Image rules**, choose shared settings or set geometry for the source.
 Use **Similar to my screen** for ratios within 5% of the display's shape,
-**Same shape as my screen** for a one-pixel tolerance, or choose preset and
-custom ratios. Under **Resolutions**, a search can match exact sizes or require
+**Same shape as my screen** to use the pixel tolerance from Settings, or choose
+preset and custom ratios. Under **Resolutions**, a search can match exact sizes or require
 a minimum. **My screen** copies the detected pixel dimensions of one connected
 display into that search. **Use theme palette** copies the current Omarchy
 swatches into the draft. You can toggle the swatches before saving. Wallhaven

@@ -191,8 +191,12 @@ func TestSimilarMonitorRatioBoundariesAndIndependentMinimum(t *testing.T) {
 	for _, mode := range []string{"monitor", "756:491"} {
 		exact, _ := ParseRatioRule(mode, nil)
 		exact, _ = ResolveRatioRule(exact, caps)
-		if exact.matches(ImageInfo{Width: 5120, Height: 3328}) {
-			t.Errorf("%s accepted a near match under the existing exact rule", mode)
+		near := ImageInfo{Width: 5120, Height: 3328}
+		if !exact.matches(near) || exact.WithTolerancePixels(0).matches(near) {
+			t.Errorf("%s did not use the configured pixel tolerance for a near match", mode)
+		}
+		if exact.matches(ImageInfo{Width: 3600, Height: 2400}) {
+			t.Errorf("%s used the similar screen percentage for a pixel rule", mode)
 		}
 	}
 }

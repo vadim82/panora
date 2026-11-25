@@ -31,7 +31,14 @@ function savedSettings(mock: BridgeMock, initial: Configuration = structuredClon
         Object.assign(next.saved, { [key]: edit[key] });
         Object.assign(next.effective, { [key]: edit[key] });
       }
-    for (const key of ['min_width', 'min_height', 'max_depth', 'ratio', 'ratio_presets'] as const)
+    for (const key of [
+      'min_width',
+      'min_height',
+      'max_depth',
+      'ratio',
+      'ratio_presets',
+      'ratio_tolerance_pixels',
+    ] as const)
       if (edit[key] !== undefined) Object.assign(next.rules, { [key]: edit[key] });
     next.restart_required = [];
     source.config = next;
@@ -70,6 +77,34 @@ async function readyImages() {
 }
 
 describe('image settings', () => {
+  it('saves zero pixel tolerance without enabling shared filters', async () => {
+    const user = userEvent.setup(),
+      mock = installBridge(),
+      config = structuredClone(configuration);
+    Object.assign(config.rules, { min_width: 1, min_height: 1 });
+    savedSettings(mock, config);
+    renderImages();
+    await readyImages();
+    const tolerance = screen.getByLabelText('Aspect ratio tolerance (pixels)');
+    expect(tolerance).toHaveValue(10);
+    await user.clear(tolerance);
+    await user.type(tolerance, '0');
+    expect(screen.getByRole('button', { name: 'Use all images' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await user.click(screen.getByRole('button', { name: 'Preview matches' }));
+    await waitFor(() => expect(mock.RulePreview).toHaveBeenCalled());
+    expect(mock.RulePreview.mock.calls[0][0].rules.ratio_tolerance_pixels).toBe(0);
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect(mock.UpdateConfiguration).toHaveBeenCalledWith({
+        revision: 'reviewed',
+        ratio_tolerance_pixels: 0,
+      }),
+    );
+  });
+
   it('sets both minimum dimensions from a preset and shows inputs only for a custom size', async () => {
     const user = userEvent.setup(),
       mock = installBridge();

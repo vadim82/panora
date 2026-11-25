@@ -77,11 +77,7 @@ func (i ImageInfo) meetsMinResolution(minWidth, minHeight int) bool {
 	return i.Width >= minWidth && i.Height >= minHeight
 }
 
-func (i ImageInfo) matchesAspectRatio(ratio AspectRatio) bool {
-	return i.matchesRatio(ratio, false)
-}
-
-func (i ImageInfo) matchesRatio(ratio AspectRatio, similar bool) bool {
+func (i ImageInfo) matchesRatio(ratio AspectRatio, similar bool, tolerancePixels int) bool {
 	if i.Width <= 0 || i.Height <= 0 || ratio.Width <= 0 || ratio.Height <= 0 {
 		return false
 	}
@@ -108,10 +104,10 @@ func (i ImageInfo) matchesRatio(ratio AspectRatio, similar bool) bool {
 		return differenceHi < toleranceHi || differenceHi == toleranceHi && differenceLo <= toleranceLo
 	}
 
-	// Allow either dimension to differ by at most one pixel from the ideal ratio.
+	// Allow either dimension to differ from the ideal ratio by the configured pixel count.
 	// This does not relax the separate minimum-resolution check.
-	tolerance := uint64(max(ratio.Width, ratio.Height))
-	return differenceHi == 0 && differenceLo <= tolerance
+	toleranceHi, toleranceLo := bits.Mul64(uint64(max(ratio.Width, ratio.Height)), uint64(tolerancePixels))
+	return differenceHi < toleranceHi || differenceHi == toleranceHi && differenceLo <= toleranceLo
 }
 
 type AspectRatio struct {

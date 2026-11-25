@@ -44,6 +44,7 @@ interface Draft {
   min_height: string;
   ratio: string;
   ratio_presets: string[];
+  ratio_tolerance_pixels: string;
   backend: string;
   fit: string;
   upscale: boolean;
@@ -70,6 +71,7 @@ function saved(config: Configuration): Draft {
     min_height: String(config.rules.min_height),
     ratio: config.rules.ratio,
     ratio_presets: config.rules.ratio_presets || [],
+    ratio_tolerance_pixels: String(config.rules.ratio_tolerance_pixels ?? 10),
     backend: config.saved.backend,
     fit: config.saved.fit,
     upscale: config.saved.upscale,
@@ -254,6 +256,10 @@ export function ImageSettingsProvider({ children }: PropsWithChildren) {
           max_depth: baseline.rules.max_depth,
           ratio: draft.ratio,
           ratio_presets: draft.ratio === 'presets' ? draft.ratio_presets : [],
+          ...(Number(draft.ratio_tolerance_pixels) !==
+            (baseline.rules.ratio_tolerance_pixels ?? 10) && {
+            ratio_tolerance_pixels: Number(draft.ratio_tolerance_pixels),
+          }),
         },
       },
     ]);
@@ -394,6 +400,7 @@ export function ImageSettings() {
     min_height: '',
     ratio: 'any',
     ratio_presets: [],
+    ratio_tolerance_pixels: '10',
     backend: 'auto',
     fit: 'contain',
     upscale: false,
@@ -465,7 +472,8 @@ export function ImageSettings() {
       origin = document.activeElement;
     const edit: PreferenceEdit = { revision: editor.baseline.revision };
     for (const key of keys) {
-      if (key === 'min_width' || key === 'min_height') edit[key] = Number(draft[key]);
+      if (key === 'min_width' || key === 'min_height' || key === 'ratio_tolerance_pixels')
+        edit[key] = Number(draft[key]);
       else if (key !== 'ratio_presets') Object.assign(edit, { [key]: draft[key] });
     }
     if (keys.includes('fit') || keys.includes('upscale')) {
@@ -851,6 +859,26 @@ export function ImageSettings() {
             >
               Preview matches
             </Button>
+          </div>
+
+          <div className="settings-subsection">
+            <div className="rules-grid">
+              <Field
+                htmlFor="ratio-tolerance-pixels"
+                help="Applies to pixel-based aspect ratios across all sources. Use 0 for exact matches."
+              >
+                Aspect ratio tolerance (pixels)
+                <NumberInput
+                  id="ratio-tolerance-pixels"
+                  min={0}
+                  max={Number.MAX_SAFE_INTEGER}
+                  step={1}
+                  required
+                  value={draft.ratio_tolerance_pixels}
+                  onChange={(event) => image.update('ratio_tolerance_pixels', event.target.value)}
+                />
+              </Field>
+            </div>
           </div>
 
           <details id="desktop-options">

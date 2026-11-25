@@ -470,7 +470,14 @@ export function installFixture(
         'cache_max_bytes',
       ] as const)
         if (edit[key] !== undefined) Object.assign(config.saved, { [key]: edit[key] });
-      for (const key of ['min_width', 'min_height', 'max_depth', 'ratio', 'ratio_presets'] as const)
+      for (const key of [
+        'min_width',
+        'min_height',
+        'max_depth',
+        'ratio',
+        'ratio_presets',
+        'ratio_tolerance_pixels',
+      ] as const)
         if (edit[key] !== undefined) Object.assign(config.rules, { [key]: edit[key] });
       config.effective = copy(config.saved);
       return saved();

@@ -116,6 +116,7 @@ export interface SourceImageRules {
 }
 export interface ImageRules extends SourceImageRules {
   max_depth: number;
+  ratio_tolerance_pixels?: number;
 }
 export interface RuleResolution {
   state: string;

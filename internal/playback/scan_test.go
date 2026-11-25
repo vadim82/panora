@@ -39,7 +39,7 @@ func TestScanDirectoryResults(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "b-corrupt.png"), []byte("not an image"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	writeScanImage(t, filepath.Join(root, "c-reject.png"), 8, 8)
+	writeScanImage(t, filepath.Join(root, "c-reject.png"), 8, 20)
 	writeScanImage(t, filepath.Join(root, "child", "included.png"), 32, 9)
 	writeScanImage(t, filepath.Join(root, "child", "deep", "excluded.png"), 32, 9)
 	count := 0

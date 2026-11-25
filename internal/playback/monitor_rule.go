@@ -72,8 +72,7 @@ func ResolveRatioRule(rule *RatioRule, capabilities desktop.Capabilities) (*Rati
 	}
 	ratio := AspectRatio{Width: display.Width / a, Height: display.Height / a}
 	result.State, result.Reason, result.Ratio, result.Display = "resolved", "", fmt.Sprintf("%d:%d", ratio.Width, ratio.Height), &display
-	resolved := singleRatioRule(&ratio)
-	resolved.similar = rule.similar
+	resolved := &RatioRule{ratios: []AspectRatio{ratio}, label: result.Ratio, similar: rule.similar, tolerancePixels: rule.tolerancePixels}
 	if rule.similar {
 		resolved.label += " ±5%"
 	}
