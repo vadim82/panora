@@ -30,7 +30,6 @@
   "disconnectedNotice": "Controls are unavailable. The last known image is shown. Check status after starting the service.",
   "uncertainNotice": "The last application could not be confirmed. Check the desktop, then use Next or Previous to recover. Automatic rotation remains paused.",
   "actionUnconfirmed": "The action result was not confirmed. Check status before trying again. It will not be retried automatically.",
-  "busyNotice": "Another playback action is running. Wait for it to finish.",
   "dimensions": "%1 × %2",
   "configuredSource": "Configured source"
 }
