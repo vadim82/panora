@@ -80,7 +80,20 @@ class OwnedProcess:
             pass
         # Descendants can outlive a normally exited parent. The group belongs
         # exclusively to this invocation because it was started in a new session.
-        self._signal(signal.SIGKILL)
+        try:
+            self._signal(signal.SIGKILL)
+        except PermissionError:
+            # Darwin can return EPERM while a group contains only zombies.
+            # Verify the group is gone or dead before accepting the error.
+            if sys.platform != "darwin":
+                raise
+            code, output = command(
+                ["/bin/ps", "-x", "-g", self.process.pid, "-o", "state="],
+                {"LC_ALL": "C"}, success=False, timeout=2)
+            states = output.split()
+            if not ((code == 1 and not states) or
+                    (code == 0 and states and all(state.startswith("Z") for state in states))):
+                raise
         self.process.wait(timeout=2)
         self.reader.join(timeout=2)
         if self.reader.is_alive():
