@@ -86,15 +86,18 @@ Apple notarization ticket. [Apple's notarization guide](https://developer.apple.
 
 The public repository also serves as the Homebrew tap. The formula pins the
 release tag and its full source commit. After a stable GitHub release,
-the **Homebrew formula** workflow prepares a patch for the version bump. For
-releases published by another workflow, dispatch **Homebrew formula** manually
-and provide the published tag as `release_tag`.
+the **Homebrew formula** workflow opens a PR against `main` for the new tag.
+For releases published with `GITHUB_TOKEN` in another workflow, dispatch
+**Homebrew formula** manually with the published tag as `release_tag`.
 
-Apply the patch in a maintainer PR. The Homebrew workflow builds and tests the
-formula on an Apple silicon Mac, and separately uploads the verified ad-hoc ZIP,
-checksum list, and build receipt for the same tag. Attach those outputs to the
-matching GitHub release after reviewing the receipt. Once the formula PR is
-merged, the new version is available through `brew update` and
+The repository's Actions settings must allow GitHub Actions to create pull
+requests. Use **Approve workflows to run** in the generated PR to start its
+checks. If the PR cannot be opened, the workflow run still provides the
+formula patch for a maintainer PR.
+
+The PR checks build and test the formula on an Apple silicon Mac. They also
+upload the verified ad-hoc ZIP, checksum list, and build receipt for the same
+tag. After merging the formula PR, users can run `brew update` and
 `brew upgrade panora`.
 
 ## CLI-only development
