@@ -45,8 +45,14 @@ journalctl --user -u panora.service -b
 ```
 
 Use **Update → Omarchy** for repository upgrades. For a direct download or
-local build, install the newer package with `sudo pacman -U`. After a
-successful transaction, the hook restarts each
+local build, install the newer package with `sudo pacman -U`.
+
+If `pacman -Q panora` shows a version beginning with `1:`, explicitly reinstall
+from the independent feed once with `sudo pacman -Syu panora/panora`. Pacman
+reports a downgrade because the old package used epoch 1. After that switch,
+ordinary updates use the release version. Fresh installs require no migration.
+
+After a successful transaction, the hook restarts each
 verified running stock service through its systemd user manager. The desktop
 window can stay closed. A stopped service stays stopped and **Start Panora at
 login** keeps its current setting. Saved sources,
@@ -150,11 +156,10 @@ The command prints the full commit, package version and `SOURCE_DATE_EPOCH`
 from the commit timestamp. It puts the committed
 source archive, package install script and generated PKGBUILD with both
 SHA-256 checksums from that revision in the build directory. Local changes
-and generated files in the checkout are excluded. Tagged release packages
-use the release version and a pacman epoch of 1, which orders them after
-earlier revision-numbered packages. Untagged development packages use the
-first-parent commit count and abbreviated commit ID. The release archive
-filename omits the epoch, and pacman reads it from the package metadata.
+and generated files in the checkout are excluded. Starting with v0.7.2, tagged
+packages use the release version with the pacman epoch unset. Building a
+historical release uses its recorded recipe. Untagged development packages use
+the first-parent commit count and abbreviated commit ID.
 
 The package embeds that Arch version in **Settings → About Panora**, alongside
 the release version when the commit has an exact `vX.Y.Z` tag. When preparing a

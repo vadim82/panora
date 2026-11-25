@@ -1,7 +1,6 @@
 pkgname=panora
 pkgver=@PKGVER@
 pkgrel=1
-epoch=@PKG_EPOCH@
 pkgdesc='Wallpaper rotation and playback controls for Omarchy'
 arch=('x86_64')
 url='https://github.com/vadim82/panora'
@@ -24,9 +23,6 @@ prepare() {
 }
 
 _arch_package_version() {
-  if (( epoch > 0 )); then
-    printf '%s:' "$epoch"
-  fi
   printf '%s-%s' "$pkgver" "$pkgrel"
 }
 
