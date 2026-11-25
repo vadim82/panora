@@ -1,0 +1,118 @@
+name: Publish pacman repository
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published stable release tag (vX.Y.Z)
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: pacman-pages
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: >-
+      github.repository == 'vadim82/panora' &&
+      ((github.event_name == 'release' && !github.event.release.prerelease) ||
+      github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: pacman-signing
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: refs/heads/main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download and verify the released package
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$(gh release view "$TAG" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" == false ]]
+          revision=$(git rev-parse --verify "refs/tags/$TAG^{commit}")
+          git merge-base --is-ancestor "$revision" HEAD
+          mkdir "$RUNNER_TEMP/package"
+          cd "$RUNNER_TEMP/package"
+          package="panora-${TAG#v}-1-x86_64.pkg.tar.zst"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "$package" --pattern SHA256SUMS --pattern RELEASE-RECEIPT.arch-x86_64.txt
+          grep -Fx "Revision: $revision" RELEASE-RECEIPT.arch-x86_64.txt
+          grep -Fx "Artifact: $package" RELEASE-RECEIPT.arch-x86_64.txt
+          awk -v package="$package" '$2 == package { print; count++ } END { if (count != 1) exit 1 }' SHA256SUMS |
+            sha256sum --strict --check -
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: gh-pages
+          path: pages
+      - name: Sign and stage the new package and indexes
+        shell: bash
+        env:
+          SIGNING_SUBKEY: ${{ secrets.PANORA_PACMAN_SIGNING_SUBKEY }}
+          SIGNING_FINGERPRINT: ${{ vars.PANORA_PACMAN_SIGNING_FINGERPRINT }}
+        run: |
+          [[ -n "$SIGNING_SUBKEY" && "$SIGNING_FINGERPRINT" =~ ^[A-F0-9]{40}$ ]]
+          mkdir "$RUNNER_TEMP/site"
+          git -C pages archive HEAD | tar -x -C "$RUNNER_TEMP/site"
+          printf '%s\n' "$SIGNING_SUBKEY" | docker run --rm -i \
+            --mount "type=bind,src=$RUNNER_TEMP/site,dst=/site" \
+            --mount "type=bind,src=$RUNNER_TEMP/package,dst=/release,readonly" \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/packaging/arch/stage-pacman-repository,dst=/stage-pacman-repository,readonly" \
+            --env "SIGNING_FINGERPRINT=$SIGNING_FINGERPRINT" --env "TAG=$TAG" \
+            archlinux@sha256:a1d4b509c51fc68dcc7ee1f88342fe26b1f65e6775c3aff26f196141e6c76a6f \
+            bash -euc '
+              pacman-key --init </dev/null
+              pacman-key --populate archlinux </dev/null
+              pacman -Syu --needed --noconfirm gnupg </dev/null
+              export GNUPGHOME
+              GNUPGHOME=$(mktemp -d)
+              gpg --batch --import /site/arch/panora-signing-key.asc
+              gpg --batch --import
+              printf "%s\n" "$TAG" >/tmp/subkey-check
+              gpg --batch --local-user "$SIGNING_FINGERPRINT!" --detach-sign /tmp/subkey-check
+              gpg --batch --dearmor --output /tmp/panora.gpg /site/arch/panora-signing-key.asc
+              gpgv --keyring /tmp/panora.gpg /tmp/subkey-check.sig /tmp/subkey-check
+              bash /stage-pacman-repository \
+                "/release/panora-${TAG#v}-1-x86_64.pkg.tar.zst" /site "$SIGNING_FINGERPRINT"
+            '
+      - name: Save the signed repository
+        shell: bash
+        run: |
+          cp -R "$RUNNER_TEMP/site/arch/x86_64/." pages/arch/x86_64/
+          git -C pages add -- arch/x86_64
+          if ! git -C pages diff --cached --quiet; then
+            git -C pages -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m "Publish Panora $TAG to the pacman repository"
+            git -C pages push origin HEAD:refs/heads/gh-pages
+          fi
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    needs: stage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the signed repository
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

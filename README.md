@@ -66,6 +66,9 @@ the active theme. Online discovery is opt-in and uses safe-for-work Wallhaven
 results. On Omarchy 4.5, the package adds playback controls to the bar on
 first use.
 
+See [Omarchy setup and removal](integrations/omarchy/README.md#install-from-the-marketplace)
+for managing or removing the bar widget.
+
 ## Install on macOS (Apple silicon)
 
 Panora has a native Mac window and menu bar controls. Start with a local
@@ -74,13 +77,28 @@ in Settings if you want rotation to start automatically. The menu bar stays
 available when you quit the window, and your current wallpaper follows you
 as you visit ordinary Desktops in Spaces.
 
+### Install with Homebrew
+
+Tap and trust the formula once, then install Panora.
+
+```sh
+brew tap vadim82/panora https://github.com/vadim82/panora.git
+brew trust --formula vadim82/panora/panora
+brew install panora
+open "$(brew --prefix panora)/libexec/Panora.app"
+```
+
+See the [macOS user guide](docs/macos.md#install-with-homebrew-on-apple-silicon)
+for upgrades and removal.
+
+### Download from GitHub Releases
+
 Download the ad-hoc signed preview from
 [GitHub Releases](https://github.com/vadim82/panora/releases/latest) for Apple
 silicon Macs running macOS 26.7.2 or later. The release notes explain the
 checksum and what to expect from Gatekeeper when opening the preview.
 
-You can also [build `Panora.app` from source](docs/macos-development.md#build-and-install).
-See the [macOS user guide](docs/macos.md) for menu bar controls, setup, and removal.
+For local development, see [building `Panora.app` from source](docs/macos-development.md#build-and-install).
 
 ## Documentation and contributing
 

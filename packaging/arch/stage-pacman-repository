@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+  printf '%s\n' "$*" >&2
+  exit 1
+}
+
+if [[ $# != 3 ]]; then
+  fail "Usage: $0 PACKAGE PAGES_DIRECTORY SIGNING_FINGERPRINT"
+fi
+
+package=$(realpath -e -- "$1")
+pages=$(realpath -e -- "$2")
+signer=$3
+fingerprint='8E2A94B8A2B91252C5B347FF787956F904D9C8B6'
+index="$pages/arch/x86_64"
+source_key="$pages/arch/panora-signing-key.asc"
+filename=${package##*/}
+version_pattern='panora-((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))-1-x86_64\.pkg\.tar\.zst'
+[[ $filename =~ ^$version_pattern$ ]] || fail "Expected a versioned Panora x86-64 package."
+version="1:${BASH_REMATCH[1]}-1"
+[[ $signer =~ ^[A-F0-9]{40}$ ]] || fail "Specify a full uppercase OpenPGP signing fingerprint."
+[[ -d $index && -f $source_key ]] || fail "Panora Pages package directory or public key is missing."
+
+metadata=$(bsdtar -xOf "$package" .PKGINFO)
+for field in 'pkgname = panora' "pkgver = $version" 'arch = x86_64'; do
+  grep -Fxq "$field" <<<"$metadata" || fail "Package metadata does not match the release."
+done
+
+staging=$(mktemp -d)
+trap 'rm -rf -- "$staging"' EXIT
+reported_fingerprint=$(gpg --batch --show-keys --with-colons "$source_key" |
+  awk -F: '$1 == "fpr" && !found { print $10; found = 1 }')
+[[ $reported_fingerprint == "$fingerprint" ]] || fail "Panora's published key fingerprint does not match."
+gpg --batch --dearmor --output "$staging/panora.gpg" "$source_key"
+
+verify() {
+  gpgv --keyring "$staging/panora.gpg" "$2" "$1"
+}
+
+verify "$index/panora.db" "$index/panora.db.sig"
+verify "$index/panora.files" "$index/panora.files.sig"
+current_version=$(bsdtar -xOf "$index/panora.db" 'panora-*/desc' |
+  awk '$0 == "%VERSION%" { getline; print }')
+[[ -n $current_version ]] || fail "The signed package database has no Panora record."
+case $(vercmp "$version" "$current_version") in
+  -1) fail "The signed package repository already contains a newer Panora release." ;;
+  0)
+    cmp -- "$package" "$index/$filename" || fail "The published package for this version differs."
+    verify "$index/$filename" "$index/$filename.sig"
+    printf 'Panora %s is already staged.\n' "$version"
+    exit 0
+    ;;
+esac
+
+cp -- "$package" "$staging/$filename"
+for suffix in db files; do
+  cp -- "$index/panora.$suffix" "$staging/panora.$suffix.tar.gz"
+  cp -- "$index/panora.$suffix.sig" "$staging/panora.$suffix.tar.gz.sig"
+done
+
+gpg --batch --local-user "$signer!" --detach-sign "$staging/$filename"
+repo-add --nocolor --include-sigs --sign --key "$signer!" \
+  "$staging/panora.db.tar.gz" "$staging/$filename"
+verify "$staging/$filename" "$staging/$filename.sig"
+for suffix in db files; do
+  verify "$staging/panora.$suffix.tar.gz" "$staging/panora.$suffix.tar.gz.sig"
+done
+
+for artifact in "$filename" "$filename.sig" panora.db panora.db.sig panora.files panora.files.sig; do
+  # Pages serves regular files. repo-add creates symlinks for these index names.
+  install -m644 -- "$staging/$artifact" "$index/$artifact"
+done
+printf 'Panora %s is staged.\n' "$version"
