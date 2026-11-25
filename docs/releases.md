@@ -5,8 +5,10 @@ Build and inspect an Arch package from a recorded revision using the
 archive, package contents, third-party notices and checksums, and test the
 package in an isolated environment before distribution.
 
-Public macOS distribution requires Developer ID signing and notarization; see
-[macOS development](macos-development.md#prepare-a-macos-release-archive).
+See [macOS development](macos-development.md#prepare-a-macos-release-archive)
+for archive preparation. Public ad-hoc previews document the supported
+architecture, minimum macOS version, checksum, and Gatekeeper behavior in
+the release notes. Notarized releases require Developer ID signing.
 
 ## Draft a release on GitHub
 
@@ -37,5 +39,4 @@ mise exec -- task release:stage REVISION=HEAD VERSION=0.4.0 \
 ```
 
 Use the revision and version from your builds and choose a new staging directory
-whose parent exists. Staging groups the verified artifacts locally. An ad-hoc
-macOS archive is for local testing.
+whose parent exists. Staging groups the verified artifacts locally.

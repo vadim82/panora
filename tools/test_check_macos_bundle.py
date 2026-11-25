@@ -230,6 +230,32 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(child.reader.is_alive())
         self.assertEqual(child.process.returncode, 0)
 
+    def test_darwin_escalation_accepts_only_gone_or_zombie_groups(self):
+        for code, output, exited in (
+            (1, "", True),
+            (0, "Z\nZ+", True),
+            (0, "Z\nS", False),
+            (1, "ps: group lookup failed", False),
+        ):
+            with self.subTest(code=code, output=output):
+                child = check.OwnedProcess([sys.executable, '-c', 'pass'], dict(os.environ))
+                try:
+                    child.wait()
+                    with patch.object(child, '_signal', side_effect=[None, PermissionError]), \
+                            patch.object(check.sys, 'platform', 'darwin'), \
+                            patch.object(check, 'command', return_value=(code, output)) as query:
+                        if exited:
+                            child.close()
+                            self.assertTrue(child.process.stdout.closed)
+                        else:
+                            with self.assertRaises(PermissionError):
+                                child.close()
+                    query.assert_called_once_with(
+                        ["/bin/ps", "-x", "-g", child.process.pid, "-o", "state="],
+                        {"LC_ALL": "C"}, success=False, timeout=2)
+                finally:
+                    child.process.stdout.close()
+
     def test_cleanup_escalates_when_owned_service_ignores_sigterm(self):
         ready = self.root / 'handler-ready'
         program = 'import signal,time,sys; from pathlib import Path; signal.signal(signal.SIGTERM, signal.SIG_IGN); Path(sys.argv[1]).touch(); time.sleep(20)'
