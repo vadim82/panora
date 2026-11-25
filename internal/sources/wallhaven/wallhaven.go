@@ -3,7 +3,6 @@
 package wallhaven
 
 import (
-	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -23,8 +22,8 @@ import (
 )
 
 const (
-	maxBodyBytes = 1 << 20
-	maxAnyBatch  = 4 // Four upstream pages fit within the service discovery page size.
+	maxBodyBytes      = 1 << 20
+	wallhavenPageSize = 24
 )
 
 var imageID = regexp.MustCompile(`^[a-z0-9]{6}$`)
@@ -64,29 +63,24 @@ func (p *Provider) Validate(ctx context.Context, raw json.RawMessage) error {
 }
 
 type cursor struct {
-	Config    string `json:"config"`
-	Page      int    `json:"page"`
-	Offset    int    `json:"offset"`
-	Branch    int    `json:"branch,omitempty"`
-	Seed      string `json:"seed,omitempty"`
-	LastPages []int  `json:"last_pages,omitempty"`
+	Config string `json:"config"`
+	Page   int    `json:"page"`
+	Offset int    `json:"offset"`
+	Seed   string `json:"seed,omitempty"`
 }
 type reference struct {
 	ID string `json:"id"`
 }
 type wallpaper struct {
-	ID        string `json:"id"`
-	URL       string `json:"url"`
-	Purity    string `json:"purity"`
-	Path      string `json:"path"`
-	MIME      string `json:"file_type"`
-	Width     int    `json:"dimension_x"`
-	Height    int    `json:"dimension_y"`
-	Source    string `json:"source"`
-	Created   string `json:"created_at"`
-	Views     int64  `json:"views"`
-	Favorites int64  `json:"favorites"`
-	Uploader  *struct {
+	ID       string `json:"id"`
+	URL      string `json:"url"`
+	Purity   string `json:"purity"`
+	Path     string `json:"path"`
+	MIME     string `json:"file_type"`
+	Width    int    `json:"dimension_x"`
+	Height   int    `json:"dimension_y"`
+	Source   string `json:"source"`
+	Uploader *struct {
 		Username string `json:"username"`
 		URL      string `json:"url"`
 	} `json:"uploader"`
@@ -148,91 +142,79 @@ func (p *Provider) Discover(ctx context.Context, params source.DiscoverParams) (
 		return result, source.Failure("invalid_config", "invalid image filter hints")
 	}
 	settings, _ := json.Marshal(struct {
-		Config Config
-		Filter *source.FilterHints
-	}{c, f})
+		Version int
+		Config  Config
+		Filter  *source.FilterHints
+	}{2, c, f})
 	hash := sha256.Sum256(settings)
 	fingerprint := hex.EncodeToString(hash[:])
-	matchAny := c.EffectiveTagMatch() == source.WallhavenTagMatchAny && len(c.Tags) > 1
-	branches := searchBranches(c, matchAny)
-	pageLimit := max(1, c.MaxPages/len(branches))
-	batchSize := len(branches)
-	if matchAny {
-		batchSize = min(batchSize, maxAnyBatch)
-	}
-	position := cursor{Config: fingerprint, Page: 1, LastPages: make([]int, len(branches))}
+	position := cursor{Config: fingerprint, Page: 1}
 	if len(params.Cursor) > source.MaxCursorBytes {
 		return result, source.Failure("invalid_cursor", "cursor is too large")
 	}
 	if len(params.Cursor) != 0 && !source.IsNull(params.Cursor) {
-		// Older cursors omit LastPages and index the raw listing; restart from page one.
-		position.LastPages = nil
-		if source.Decode(params.Cursor, &position) != nil || !position.valid(fingerprint, pageLimit, len(branches), batchSize, c.Sorting == "random") {
+		if source.Decode(params.Cursor, &position) != nil || !position.valid(fingerprint, c.MaxPages, c.Sorting == "random") {
 			return result, source.Failure("invalid_cursor", "cursor does not match Wallhaven settings")
 		}
 	}
+
 	categories := c.Categories
 	if categories == "" || categories == "000" {
 		categories = "111"
 	}
-	q := url.Values{"categories": {categories}, "purity": {"100"}, "sorting": {c.Sorting}, "order": {c.Order}, "page": {strconv.Itoa(position.Page)}}
+	q := url.Values{
+		"q": {searchQuery(c)}, "categories": {categories}, "purity": {"100"},
+		"sorting": {c.Sorting}, "order": {c.Order}, "page": {strconv.Itoa(position.Page)},
+	}
 	if c.Sorting == "toplist" {
 		q.Set("topRange", c.TopRange)
+	}
+	if colors := searchColors(c.Colors); len(colors) > 0 {
+		q.Set("colors", strings.Join(colors, ","))
+	}
+	if position.Seed != "" {
+		q.Set("seed", position.Seed)
 	}
 	setGeometryQuery(q, f)
 	operation, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	endBranch := min(position.Branch+batchSize, len(branches))
-	pages := make([][]rankedCandidate, endBranch-position.Branch)
-	for i := position.Branch; i < endBranch; i++ {
-		branch := branches[i]
-		if position.LastPages[i] > 0 && position.LastPages[i] < position.Page {
+
+	var page listing
+	if err := p.get(operation, "/search", q, &page); err != nil {
+		if ctx.Err() == nil && operation.Err() != nil {
+			return result, source.Failure("unavailable", "Wallhaven search timed out")
+		}
+		return result, err
+	}
+	if page.Data == nil || len(page.Data) > wallhavenPageSize || page.Meta.Current != position.Page || page.Meta.Last < position.Page || page.Meta.PerPage != wallhavenPageSize {
+		return result, source.Failure("unavailable", "Wallhaven returned invalid pagination metadata")
+	}
+	if c.Sorting == "random" {
+		if !randomSeed.MatchString(page.Meta.Seed) || position.Seed != "" && page.Meta.Seed != position.Seed {
+			return result, source.Failure("invalid_cursor", "Wallhaven random seed changed; restart discovery")
+		}
+		position.Seed = page.Meta.Seed
+	}
+
+	candidates := make([]source.Candidate, 0, len(page.Data))
+	seen := make(map[string]bool, len(page.Data))
+	for _, w := range page.Data {
+		if w.Purity != "sfw" && w.Purity != "sketchy" && w.Purity != "nsfw" || w.MIME == "" {
+			return result, source.Failure("unavailable", "Wallhaven returned incomplete image metadata")
+		}
+		if w.Purity != "sfw" || w.MIME != "image/jpeg" && w.MIME != "image/png" {
 			continue
 		}
-		q.Set("q", branch.query)
-		if branch.color != "" {
-			q.Set("colors", branch.color)
-		}
-		if position.Seed != "" {
-			q.Set("seed", position.Seed)
-		}
-		var page listing
-		if err := p.get(operation, "/search", q, &page); err != nil {
-			if ctx.Err() == nil && operation.Err() != nil {
-				return result, source.Failure("unavailable", "Wallhaven search timed out")
-			}
+		item, err := candidate(w)
+		if err != nil {
 			return result, err
 		}
-		if page.Data == nil || len(page.Data) > 24 || page.Meta.Current != position.Page || page.Meta.Last < position.Page || page.Meta.PerPage != 24 {
-			return result, source.Failure("unavailable", "Wallhaven returned invalid pagination metadata")
+		if seen[item.ID] {
+			return result, source.Failure("unavailable", "Wallhaven repeated an image ID")
 		}
-		if c.Sorting == "random" {
-			if !randomSeed.MatchString(page.Meta.Seed) || position.Seed != "" && position.Seed != page.Meta.Seed {
-				return result, source.Failure("invalid_cursor", "Wallhaven random seed changed; restart discovery")
-			}
-			position.Seed = page.Meta.Seed
-		}
-		position.LastPages[i] = min(page.Meta.Last, pageLimit)
-		pageSeen := map[string]bool{}
-		for _, w := range page.Data {
-			if w.Purity != "sfw" && w.Purity != "sketchy" && w.Purity != "nsfw" || w.MIME == "" {
-				return result, source.Failure("unavailable", "Wallhaven returned incomplete image metadata")
-			}
-			if w.Purity != "sfw" || w.MIME != "image/jpeg" && w.MIME != "image/png" {
-				continue
-			}
-			item, err := candidate(w)
-			if err != nil {
-				return result, err
-			}
-			if pageSeen[item.ID] {
-				return result, source.Failure("unavailable", "Wallhaven repeated an image ID")
-			}
-			pageSeen[item.ID] = true
-			pages[i-position.Branch] = append(pages[i-position.Branch], rankedCandidate{item, w.Created, w.Views, w.Favorites})
-		}
+		seen[item.ID] = true
+		candidates = append(candidates, item)
 	}
-	candidates := mergePages(pages, c, matchAny)
 	if position.Offset > len(candidates) {
 		return result, source.Failure("unavailable", "Wallhaven changed the current page during discovery")
 	}
@@ -241,12 +223,8 @@ func (p *Provider) Discover(ctx context.Context, params source.DiscoverParams) (
 	switch {
 	case end < len(candidates):
 		position.Offset = end
-	case endBranch < len(branches):
-		position.Branch = endBranch
-		position.Offset = 0
-	case slices.ContainsFunc(position.LastPages, func(last int) bool { return last > position.Page }) && position.Page < pageLimit:
+	case position.Page < min(page.Meta.Last, c.MaxPages):
 		position.Page++
-		position.Branch = 0
 		position.Offset = 0
 	default:
 		return result, nil
@@ -255,113 +233,47 @@ func (p *Provider) Discover(ctx context.Context, params source.DiscoverParams) (
 	return result, nil
 }
 
-func (p cursor) valid(fingerprint string, pages, branches, batchSize int, random bool) bool {
+func (p cursor) valid(fingerprint string, maxPages int, random bool) bool {
 	return p.Config == fingerprint &&
-		p.Page >= 1 && p.Page <= pages &&
-		p.Branch >= 0 && p.Branch < branches && p.Branch%batchSize == 0 &&
-		p.Offset >= 0 && p.Offset < 24*min(batchSize, branches-p.Branch) &&
-		len(p.LastPages) == branches &&
-		!slices.ContainsFunc(p.LastPages, func(last int) bool { return last < 0 }) &&
+		p.Page >= 1 && p.Page <= maxPages &&
+		p.Offset >= 0 && p.Offset < wallhavenPageSize &&
 		(random && randomSeed.MatchString(p.Seed) || !random && p.Seed == "")
 }
 
-type rankedCandidate struct {
-	item             source.Candidate
-	created          string
-	views, favorites int64
-}
-
-func mergePages(pages [][]rankedCandidate, c Config, matchAny bool) []source.Candidate {
-	var merged []rankedCandidate
-	seen := map[string]bool{}
-	add := func(row rankedCandidate) {
-		if !seen[row.item.ID] {
-			seen[row.item.ID] = true
-			merged = append(merged, row)
-		}
+func searchQuery(c Config) string {
+	query := strings.TrimSpace(c.Query)
+	if len(c.Tags) == 0 {
+		return query
 	}
-	if matchAny {
-		// Relevance, toplist and seeded random have no comparable score in
-		// the API, so keep their upstream rank and interleave branches.
-		for rank := range 24 {
-			for _, page := range pages {
-				if rank < len(page) {
-					add(page[rank])
-				}
-			}
-		}
-		slices.SortStableFunc(merged, func(a, b rankedCandidate) int {
-			var comparison int
-			switch c.Sorting {
-			case "date_added":
-				comparison = strings.Compare(a.created, b.created)
-			case "views":
-				comparison = cmp.Compare(a.views, b.views)
-			case "favorites":
-				comparison = cmp.Compare(a.favorites, b.favorites)
-			}
-			if c.Order == "desc" {
-				return -comparison
-			}
-			return comparison
-		})
-	} else {
-		for _, page := range pages {
-			for _, row := range page {
-				add(row)
-			}
-		}
-	}
-	result := make([]source.Candidate, 0, len(merged))
-	for _, row := range merged {
-		result = append(result, row.item)
-	}
-	return result
-}
-
-type searchBranch struct {
-	query, color string
-}
-
-func searchBranches(c Config, matchAny bool) []searchBranch {
-	tagGroups := [][]string{c.Tags}
-	if matchAny {
-		tagGroups = make([][]string, 0, len(c.Tags))
-		for i := range c.Tags {
-			tagGroups = append(tagGroups, c.Tags[i:i+1])
-		}
-	}
-	colors := searchColors(c.Colors)
-	branches := make([]searchBranch, 0, len(tagGroups)*len(colors))
-	for _, tags := range tagGroups {
-		query := searchQuery(c.Query, tags)
-		for _, color := range colors {
-			branches = append(branches, searchBranch{query, color})
-		}
-	}
-	return branches
-}
-
-func searchQuery(query string, tags []string) string {
-	var terms []string
-	for _, tag := range tags {
-		if strings.Contains(tag, " ") {
+	terms := make([]string, 0, len(c.Tags))
+	for _, tag := range c.Tags {
+		if strings.ContainsAny(tag, " |()") {
 			tag = `"` + tag + `"`
 		}
 		terms = append(terms, "+"+tag)
 	}
-	if query := strings.TrimSpace(query); query != "" {
-		terms = append(terms, query)
+	matchAny := len(terms) > 1 && c.EffectiveTagMatch() == source.WallhavenTagMatchAny
+	separator := " "
+	if matchAny {
+		separator = " | "
 	}
-	return strings.Join(terms, " ")
+	tags := strings.Join(terms, separator)
+	if query == "" {
+		return tags
+	}
+	// Keep the structured tags and free-text expression as separate conditions.
+	if matchAny {
+		tags = "(" + tags + ")"
+	}
+	if strings.Contains(query, "|") {
+		query = "(" + query + ")"
+	}
+	return tags + " " + query
 }
 
 var upstreamColors = strings.Fields("660000 990000 cc0000 cc3333 ea4c88 993399 663399 333399 0066cc 0099cc 66cccc 77cc33 669900 336600 666600 999900 cccc33 ffff00 ffcc33 ff9900 ff6600 cc6633 996633 663300 000000 999999 cccccc ffffff 424153")
 
 func searchColors(selected []string) []string {
-	if len(selected) == 0 {
-		return []string{""}
-	}
 	var colors []string
 	for _, color := range selected {
 		closest := ""
