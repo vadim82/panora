@@ -16,7 +16,7 @@ FocusScope {
         (!!controller.actionError || !status.connected || status.warning)
     readonly property string noticeKey: controller.actionError || (!cliConfigured ? "executableNotice"
         : !status.connected ? "disconnectedNotice"
-        : status.uncertain ? "uncertainNotice" : status.busy || controller.actionInFlight ? "busyNotice"
+        : status.uncertain ? "uncertainNotice"
         : status.warning ? "warning" : "")
     readonly property string modeText: {
         if (controller.actionInFlight) return strings.t("busy");

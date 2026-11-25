@@ -190,8 +190,9 @@ When an open popup regains focus, the selected control receives focus again.
 Up, Down, Tab and Shift-Tab navigate the context menu. Enter and Space activate
 its focused action. **Open Panora** opens the app against the same service and
 **About Panora** opens its version information.
-The Play/Pause icon shows the rotation state. When the running service supplies
-a valid next-change time, it appears below the controls.
+The Play/Pause icon shows the rotation state. Below the controls, **Working…**
+shows playback progress and **Next change** shows the next scheduled attempt
+when available. The notice box shows warnings and errors.
 
 Checks:
 
