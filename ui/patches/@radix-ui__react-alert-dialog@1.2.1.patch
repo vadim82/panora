@@ -1,0 +1,13 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 9948693cf97d26db93671d5e11666f1818fa2029..f46026e705ae6732221be39c46549002b351de05 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -32,7 +32,7 @@ var AlertDialogPortal = /* @__PURE__ */ __name((props) => {
+   const dialogScope = useDialogScope(__scopeAlertDialog);
+   return /* @__PURE__ */ jsx(DialogPrimitive.Portal, { ...dialogScope, ...portalProps });
+ }, "AlertDialogPortal");
+-var AlertDialogOverlay = React.forwardRef(
++var AlertDialogOverlay = /* @__PURE__ */ React.forwardRef(
+   /* @__PURE__ */ __name(function AlertDialogOverlay2(props, forwardedRef) {
+     const { __scopeAlertDialog, ...overlayProps } = props;
+     const dialogScope = useDialogScope(__scopeAlertDialog);

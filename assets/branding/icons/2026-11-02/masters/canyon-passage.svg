@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Panora — Canyon passage</title><desc id="desc">A warm sun above stepped canyon walls and a winding light river.</desc>
+<defs><clipPath id="tile"><rect x="96" y="96" width="832" height="832" rx="184"/></clipPath>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ce7182"/><stop offset=".62" stop-color="#f6a66c"/><stop offset="1" stop-color="#f8d69b"/></linearGradient>
+<linearGradient id="cliff" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#db784b"/><stop offset="1" stop-color="#863f4d"/></linearGradient>
+</defs><g clip-path="url(#tile)">
+<rect x="96" y="96" width="832" height="832" fill="url(#sky)"/>
+<circle cx="652" cy="337" r="116" fill="#fff0bc"/>
+<path d="M96 579H206V548H306V599H412L472 555H589V604H712V552H807V507H928V928H96Z" fill="#8a647a"/>
+<path d="M96 674H248V638H350L435 713H568L669 649H808V604H928V928H96Z" fill="#654b69"/>
+<path d="M96 465H211V529H282V605H349V687L431 758L403 928H96Z" fill="url(#cliff)"/>
+<path d="M928 507H829V580H764V655H705L627 765L655 928H928Z" fill="#753d50"/>
+<path d="M592 610C520 659 617 687 557 729C488 777 488 831 381 928H624C664 842 633 801 611 765C566 700 561 684 625 642Z" fill="#f7c87f"/>
+<path d="M96 792H213V833H288V876H335V928H96Z" fill="#512e43"/>
+</g></svg>

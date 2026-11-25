@@ -1,0 +1,34 @@
+{
+  "id": "fixture-album",
+  "name": "Fixture album",
+  "version": "1.0.0",
+  "protocol": 2,
+  "command": ["fixture.py", "fixture-album"],
+  "editor": {
+    "version": 1,
+    "groups": [
+      {
+        "id": "preferences",
+        "label": "Presentation preferences",
+        "fields": [
+          {"key": "shuffle", "label": "Shuffle order", "control": "checkbox", "default": true},
+          {
+            "key": "limit",
+            "label": "Album size",
+            "control": "integer",
+            "min": 1,
+            "max": 100,
+            "default": 12,
+            "visible_when": {"key": "shuffle", "equals": false}
+          }
+        ]
+      },
+      {
+        "id": "path",
+        "fields": [
+          {"key": "root", "label": "Album directory", "control": "text", "required": true}
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.vadim82.panora",
+  "name": "Panora",
+  "version": "0.1.0",
+  "author": "vadim82",
+  "license": "MIT",
+  "description": "Thin controls for the existing Panora wallpaper service",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "BarWidget.qml"},
+  "barWidget": {
+    "displayName": "Panora",
+    "description": "Last accepted image and playback controls; never starts a service",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

@@ -1,0 +1,59 @@
+#!/bin/bash
+set -u
+
+# Pacman runs hooks in the target root. Fail closed if it is offline or
+# /proc is missing, even when the host's /run has been bind mounted there.
+if [[ ! / -ef /proc/1/root ]] || ! systemd-notify --booted; then
+  exit 0
+fi
+
+unit=panora.service
+fragment=/usr/lib/systemd/user/$unit
+executable=/usr/bin/panora
+
+# Arch's 30-systemd-daemon-reload-user hook reloaded the live managers.
+if ! managers=$(timeout -k 1s 5s systemctl --system --no-pager --no-ask-password \
+  list-units 'user@*.service' --state=running --no-legend --plain); then
+  echo 'Panora upgrade installed, but running user managers could not be listed. In your graphical session, run: systemctl --user try-restart panora.service' >&2
+  exit 1
+fi
+
+result=0
+while read -r manager _; do
+  [[ $manager =~ ^user@([0-9]+)\.service$ ]] || continue
+  user_id=${BASH_REMATCH[1]}
+  user_ctl=(systemctl --user --machine="$user_id@.host" --no-pager --no-ask-password)
+
+  if ! properties=$(timeout -k 1s 5s "${user_ctl[@]}" show --all \
+    --property=Id,ActiveState,LoadState,FragmentPath,DropInPaths,NeedDaemonReload,ExecStart,MainPID "$unit" 2>/dev/null); then
+    continue
+  fi
+  declare -A stock=()
+  while IFS='=' read -r key value; do
+    case $key in
+      Id|ActiveState|LoadState|FragmentPath|DropInPaths|NeedDaemonReload|ExecStart|MainPID) stock[$key]=$value ;;
+    esac
+  done <<< "$properties"
+
+  if [[ ${stock[Id]-} != "$unit" || ${stock[ActiveState]-} != active || ${stock[LoadState]-} != loaded ||
+    ${stock[FragmentPath]-} != "$fragment" || ${stock[DropInPaths]-unknown} != '' ||
+    ${stock[NeedDaemonReload]-} != no ||
+    ${stock[ExecStart]-} != "{ path=$executable ; argv[]=$executable serve --pause-for-setup --omarchy-session ; "* ]]; then
+    continue
+  fi
+
+  # An already-replaced process points at the current file. A process from a
+  # manual binary or another root reports a different path. Only the old
+  # package executable, unlinked by pacman, is eligible for restart.
+  pid=${stock[MainPID]-}
+  [[ $pid =~ ^[1-9][0-9]*$ && $(stat -c %u -- "/proc/$pid" 2>/dev/null) == "$user_id" &&
+    $(readlink -- "/proc/$pid/exe" 2>/dev/null) == "$executable (deleted)" ]] || continue
+
+  # A concurrent Stop takes precedence over this refresh. try-restart also
+  # leaves an already-stopped unit inactive and preserves login enablement.
+  if ! timeout -k 1s 55s "${user_ctl[@]}" --job-mode=fail try-restart "$unit"; then
+    echo "Panora upgrade installed, but panora.service could not restart for UID $user_id. In that graphical session, run: systemctl --user restart panora.service" >&2
+    result=1
+  fi
+done <<< "$managers"
+exit "$result"

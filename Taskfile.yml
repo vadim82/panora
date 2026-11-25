@@ -1,0 +1,173 @@
+version: '3'
+
+tasks:
+  default:
+    desc: List available development tasks
+    cmds:
+      - task --list
+
+  setup:
+    desc: Enable the pre-commit hook for this checkout
+    cmds:
+      - |
+        hook_path=$(git config --show-scope --get core.hooksPath) || [ "$?" -eq 1 ]
+        if [ "$hook_path" = "$(printf 'local\t.githooks')" ]; then
+          git config --local --fixed-value --unset-all core.hooksPath .githooks
+        fi
+        if git config --get core.hooksPath >/dev/null; then
+          echo 'Keeping your configured core.hooksPath. Run mise exec -- prek run to check staged changes.'
+        else
+          prek install
+        fi
+
+  release:
+    desc: Build and verify a local Arch package from a selected Git revision
+    requires:
+      vars: [REVISION, OUTPUT]
+    env:
+      PANORA_RELEASE_REVISION: '{{.REVISION}}'
+      PANORA_RELEASE_OUTPUT: '{{.OUTPUT}}'
+    cmds:
+      - packaging/arch/build-release "$PANORA_RELEASE_REVISION" "$PANORA_RELEASE_OUTPUT"
+
+  release:macos:
+    desc: Build and verify a local-use macOS app archive from a selected Git revision
+    requires:
+      vars: [REVISION, VERSION, OUTPUT]
+    env:
+      PANORA_RELEASE_REVISION: '{{.REVISION}}'
+      PANORA_RELEASE_VERSION: '{{.VERSION}}'
+      PANORA_RELEASE_OUTPUT: '{{.OUTPUT}}'
+    cmds:
+      - python3 packaging/macos/build-release.py "$PANORA_RELEASE_REVISION" "$PANORA_RELEASE_VERSION" "$PANORA_RELEASE_OUTPUT"
+
+  release:stage:
+    desc: Stage verified Arch and macOS assets for one release revision
+    requires:
+      vars: [REVISION, VERSION, ARCH_OUTPUT, MACOS_OUTPUT, OUTPUT]
+    env:
+      PANORA_RELEASE_REVISION: '{{.REVISION}}'
+      PANORA_RELEASE_VERSION: '{{.VERSION}}'
+      PANORA_RELEASE_ARCH: '{{.ARCH_OUTPUT}}'
+      PANORA_RELEASE_MACOS: '{{.MACOS_OUTPUT}}'
+      PANORA_RELEASE_OUTPUT: '{{.OUTPUT}}'
+    cmds:
+      - >-
+        python3 packaging/stage-release.py "$PANORA_RELEASE_REVISION" "$PANORA_RELEASE_VERSION"
+        "$PANORA_RELEASE_ARCH" "$PANORA_RELEASE_MACOS" "$PANORA_RELEASE_OUTPUT"
+
+  release:homebrew:
+    desc: Generate the Homebrew cask from a published Apple silicon release
+    requires:
+      vars: [VERSION, OUTPUT]
+    env:
+      PANORA_RELEASE_VERSION: '{{.VERSION}}'
+      PANORA_RELEASE_OUTPUT: '{{.OUTPUT}}'
+    cmds:
+      - python3 packaging/homebrew/render-cask.py "$PANORA_RELEASE_VERSION" "$PANORA_RELEASE_OUTPUT"
+
+  fmt:
+    desc: Format Go files in both modules
+    cmds:
+      - gofmt -w cmd internal ui
+
+  dev:
+    desc: Build and open the native Omarchy app with a paused development service
+    cmds:
+      - task: dev:build
+      - python3 tools/dev_app.py
+
+  dev:build:
+    desc: Build panora and panora-ui for the local Omarchy development session
+    preconditions:
+      - sh: test "$(uname -s)" = Linux
+        msg: The native dev task targets Linux/Omarchy; use the macOS app build on macOS.
+      - sh: pkg-config --exists gtk+-3.0 webkit2gtk-4.1
+        msg: Native development requires GTK3 and WebKitGTK 4.1 development libraries.
+      - sh: test -d ui/node_modules
+        msg: Run mise exec -- task ui:install first.
+    cmds:
+      - task: ui:build
+      - mkdir -p build
+      - go build -o build/panora ./cmd/panora
+      - go -C ui build -tags 'wails,production,webkit2_41' -o ../build/panora-ui .
+
+  ui:install:
+    desc: Install the locked frontend tools and dependencies
+    dir: ui
+    cmds:
+      - corepack pnpm install --frozen-lockfile --prod=false
+
+  ui:dev:
+    desc: Start the React development preview (open /?fixture=populated)
+    dir: ui
+    cmds:
+      - corepack pnpm dev
+
+  ui:fmt:
+    desc: Format the React client and frontend configuration
+    dir: ui
+    cmds:
+      - corepack pnpm format
+
+  ui:build:
+    desc: Type-check and build the static frontend embedded by Wails
+    dir: ui
+    cmds:
+      - corepack pnpm build
+
+  ui:check:
+    desc: Check React types, lint, formatting, workflows and production build
+    dir: ui
+    preconditions:
+      - sh: test -d node_modules
+        msg: Run mise exec -- task ui:install first.
+    cmds:
+      - corepack pnpm check
+
+  lint:
+    desc: Check Go formatting and run the pinned linters in both modules
+    env:
+      GOWORK: 'off'
+    cmds:
+      - ./tools/check-go-format
+      - mise exec -- golangci-lint run --config .golangci.yml ./...
+      - cd ui && mise exec -- golangci-lint run --config ../.golangci.yml ./...
+
+  modules:
+    desc: Check module consistency and verify dependencies without rewriting files
+    cmds:
+      - go mod tidy -diff
+      - go mod verify
+      - go -C ui mod tidy -diff
+      - go -C ui mod verify
+
+  test:
+    desc: Run tooling tests and Go race tests in both modules
+    cmds:
+      - python3 -m unittest discover -s tools -p 'test_*.py'
+      - go test -race ./...
+      - go -C ui test -race ./...
+
+  vet:
+    desc: Run go vet in both modules
+    cmds:
+      - go vet ./...
+      - go -C ui vet ./...
+
+  build:
+    desc: Build both Go modules without native desktop tags
+    cmds:
+      - go build ./...
+      - go -C ui build ./...
+
+  check:
+    desc: Run all development checks without rewriting source or module files
+    cmds:
+      - task: ui:check
+      - task: lint
+      - task: modules
+      - task: test
+      - task: vet
+      - task: build
+      - git diff --check

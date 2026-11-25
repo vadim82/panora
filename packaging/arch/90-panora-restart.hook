@@ -1,0 +1,9 @@
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = panora
+
+[Action]
+Description = Restarting active packaged Panora user services...
+When = PostTransaction
+Exec = /usr/bin/env -i PATH=/usr/bin LC_ALL=C /usr/lib/panora/package-restart

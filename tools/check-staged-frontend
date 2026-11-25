@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+check=$1
+shift
+
+# prek passes repository-relative paths. The frontend tools use the UI project root.
+for path do
+    shift
+    set -- "$@" "${path#ui/}"
+done
+cd ui
+
+case "$check" in
+    format) tool=prettier; set -- --check -- "$@" ;;
+    lint) tool=eslint; set -- -- "$@" ;;
+    *) printf 'Usage: %s {format|lint} PATH...\n' "$0" >&2; exit 2 ;;
+esac
+
+# Invoke the installed tools directly so the hook cannot refresh dependencies.
+if [ ! -x "node_modules/.bin/$tool" ]; then
+    printf 'Run mise exec -- task ui:install to install the locked frontend tools.\n' >&2
+    exit 1
+fi
+exec "./node_modules/.bin/$tool" "$@"

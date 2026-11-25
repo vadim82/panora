@@ -1,0 +1,17 @@
+[Unit]
+Description=Panora wallpaper rotation
+After=graphical-session.target
+PartOf=graphical-session.target
+Requisite=graphical-session.target
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/panora serve --pause-for-setup --omarchy-session
+Environment=PANORA_ARCH_UNIT=%y
+NotifyAccess=main
+Restart=no
+TimeoutStartSec=18s
+TimeoutStopSec=30s
+
+[Install]
+WantedBy=graphical-session.target

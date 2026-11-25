@@ -1,0 +1,476 @@
+/* Shared field metrics keep native inputs and pop-up controls aligned. */
+:root {
+  --control-height: 34px;
+}
+
+:is(.settings-panel, .folder-test, .theme-rules)
+  :is(input[type='text'], input[type='number'], select) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: var(--control-height);
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background-color: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+:is(.settings-panel, .folder-test, .theme-rules) select {
+  appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%235e6859' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :is(.settings-panel, .folder-test, .theme-rules) select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23a9b49e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+}
+
+:is(.settings-panel, .folder-test, .theme-rules) :is(input[type='checkbox'], input[type='radio']) {
+  appearance: auto;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--accent);
+}
+
+.rules-grid {
+  align-items: start;
+  gap: 16px;
+}
+
+.rules-grid > :is(label, .ui-field) {
+  min-width: 0;
+  line-height: 20px;
+}
+
+.settings-panel fieldset {
+  min-inline-size: 0;
+}
+
+.service-login-field {
+  margin-block-start: 10px;
+}
+
+.service-login-field > .checkbox-field {
+  inline-size: fit-content;
+  min-block-size: 24px;
+}
+
+.service-login-field > .subtext {
+  margin-block-start: 2px;
+  margin-inline-start: 24px;
+}
+
+.settings-path {
+  overflow-wrap: anywhere;
+}
+
+.image-selection {
+  gap: 8px;
+  margin: 14px 0;
+}
+
+:is(.settings-panel, .folder-test) .form-actions > button {
+  min-height: var(--control-height);
+}
+
+.image-selection .selection-choice {
+  min-height: var(--control-height);
+}
+
+:is(.settings-panel, .folder-test, .theme-rules)
+  :is(input[type='text'], input[type='number'], select):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.image-selection .selection-choice[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--hover);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.onboarding-empty {
+  margin: 12px 30px 30px;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.onboarding-empty > h2 {
+  font:
+    25px/1.3 Georgia,
+    serif;
+  margin-bottom: 10px;
+}
+
+.onboarding-empty > p,
+.onboarding-panel > p {
+  max-width: 68ch;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.onboarding-empty > .form-actions {
+  margin: 22px 0;
+  gap: 12px;
+}
+
+.onboarding-empty > .form-actions > button {
+  min-height: 48px;
+  min-width: 190px;
+}
+
+.onboarding-panel {
+  margin: 0 30px 26px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+}
+
+.onboarding-empty .onboarding-panel {
+  margin: 22px 0;
+}
+
+.onboarding-panel h2 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.onboarding-panel [role='status'] {
+  margin-top: 14px;
+}
+
+@media (max-width: 760px) {
+  .onboarding-empty,
+  .onboarding-panel {
+    margin-left: 22px;
+    margin-right: 22px;
+  }
+}
+
+@media (max-width: 520px) {
+  .onboarding-empty,
+  .onboarding-panel {
+    margin-left: 16px;
+    margin-right: 16px;
+    padding: 18px;
+  }
+
+  .onboarding-empty > .form-actions > button {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* Shared controls keep the Paper palette with compact desktop form metrics. */
+.ui-field {
+  display: block;
+  min-width: 0;
+}
+.ui-field > label {
+  display: block;
+}
+.ui-field-help,
+.ui-field-error {
+  display: block;
+  margin-top: 6px;
+}
+.ui-field-error {
+  color: var(--danger-ink);
+  font-size: 12px;
+}
+.ui-input[aria-invalid='true'] {
+  border-color: var(--danger-ink);
+}
+.ui-button {
+  border-radius: 5px;
+}
+.form-actions > .ui-button:not(.primary):not(.destructive),
+.ui-confirm-dialog .ui-button:not(.destructive) {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: 0 1px 1px var(--shadow);
+}
+.ui-button.destructive {
+  background: var(--danger-bg);
+  border-color: var(--danger-bg);
+  color: var(--danger-button-ink);
+}
+.ui-button.destructive:hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+.ui-button[aria-busy='true'] {
+  cursor: progress;
+}
+.ui-notice {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ui-notice[data-tone='error'] {
+  color: var(--ink);
+}
+.ui-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--dialog-backdrop);
+  pointer-events: auto;
+}
+html:has(.ui-confirm-dialog) {
+  overflow: hidden;
+}
+.ui-confirm-dialog {
+  position: fixed;
+  z-index: 101;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 18px 60px var(--dialog-shadow);
+  pointer-events: auto;
+}
+.ui-dialog-title {
+  font:
+    22px/1.3 Georgia,
+    serif;
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+.ui-dialog-description {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.ui-confirm-dialog .form-actions {
+  justify-content: flex-end;
+  margin-top: 22px;
+}
+.ui-confirm-dialog .ui-button {
+  min-height: var(--control-height);
+  border: 1px solid var(--line);
+}
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 11;
+  min-height: 52px;
+  gap: clamp(20px, 4vw, 38px);
+  padding-block: 0;
+  background: var(--bg);
+}
+.app-header .brand {
+  gap: 7px;
+  font:
+    600 16px/1.5 system-ui,
+    sans-serif;
+  letter-spacing: -0.02em;
+}
+.app-header nav {
+  align-self: stretch;
+  gap: clamp(12px, 2.6vw, 25px);
+  margin: 0;
+}
+.app-header nav button {
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+}
+.app-header nav button > span {
+  padding: 4px 3px;
+  border-radius: 4px;
+}
+.app-header nav button:hover:not(:disabled) {
+  background: transparent;
+}
+.app-header nav button:not([aria-current]):hover > span {
+  background: var(--hover);
+  color: var(--ink);
+}
+.app-header nav button:focus-visible {
+  outline-offset: -2px;
+}
+.app-header nav button[aria-current] {
+  color: var(--ink);
+  background: transparent;
+  border-bottom-color: var(--window-primary, var(--accent));
+  box-shadow: none;
+}
+.app-header .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+.app-header #refresh {
+  font-size: 12px;
+}
+.app-header .settings-gear {
+  width: 36px;
+  padding: 0;
+  color: var(--muted);
+  font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Apple Symbols', sans-serif;
+  font-size: 17px;
+  font-variant-emoji: text;
+  line-height: 1;
+}
+.app-header .settings-gear[aria-current] {
+  background: var(--hover);
+  color: var(--ink);
+}
+@media (max-width: 590px) {
+  .app-header {
+    gap: 0;
+    padding-block-start: 8px;
+  }
+  .app-header nav {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+}
+.action-menu {
+  position: relative;
+}
+.action-menu summary {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 22px;
+  line-height: 1;
+}
+.action-menu summary::-webkit-details-marker {
+  display: none;
+}
+@media (pointer: coarse) {
+  .action-menu summary {
+    width: 44px;
+    height: 44px;
+  }
+}
+.action-menu-items {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: calc(100% + 4px);
+  inset-inline-end: 0;
+  display: grid;
+  min-width: max-content;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 6px 18px var(--shadow);
+}
+.action-menu-items > button {
+  justify-content: flex-start;
+  border-color: transparent;
+  background: transparent;
+}
+.preview .preview-actions {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-end: 8px;
+}
+.preview .preview-actions summary > span {
+  display: inline;
+  margin: 0;
+  font: inherit;
+  color: var(--ink);
+}
+#preview-frame {
+  position: relative;
+  overflow: visible;
+}
+.desktop-framing {
+  margin: 12px 0;
+  padding: 0;
+  background: transparent;
+}
+.desktop-framing-image {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--matte);
+}
+.desktop-framing-image img {
+  display: block;
+}
+.desktop-framing figcaption {
+  margin-top: 5px;
+  text-align: start;
+}
+@media (max-width: 520px) {
+  .ui-confirm-dialog {
+    padding: 20px;
+  }
+  .ui-confirm-dialog .form-actions {
+    gap: 8px;
+  }
+}
+.about-identity {
+  margin: 12px 0;
+  max-width: 28rem;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.about-identity > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+
+.about-identity dt,
+.about-panel .form-actions p {
+  color: var(--muted);
+}
+
+.about-identity dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.about-panel .form-actions {
+  align-items: center;
+}

@@ -1,0 +1,24 @@
+repos:
+  - repo: local
+    hooks:
+      - id: staged-whitespace
+        name: Staged diff whitespace
+        entry: git diff --cached --check --
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: gofmt
+        name: Go formatting
+        entry: mise exec -- ./tools/check-go-format
+        language: system
+        files: '\.go$'
+      - id: frontend-format
+        name: Frontend formatting
+        entry: mise exec -- ./tools/check-staged-frontend format
+        language: system
+        files: '^ui/(frontend/(?!dist/).+\.(css|html|[cm]?js|jsx|json|md|[cm]?ts|tsx|ya?ml)|eslint\.config\.js|tsconfig\.json|vite\.config\.ts)$'
+      - id: frontend-lint
+        name: Frontend lint
+        entry: mise exec -- ./tools/check-staged-frontend lint
+        language: system
+        files: '^ui/frontend/src/.+\.([cm]?js|jsx|[cm]?ts|tsx)$'

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# != 2 ]]; then
+  printf 'Usage: %s REVISION NEW_BUILD_DIRECTORY\n' "$0" >&2
+  exit 2
+fi
+
+repo=$(git -C "$(dirname -- "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)
+revision=$(git -C "$repo" rev-parse --verify --end-of-options "$1^{commit}")
+build_dir=$2
+count=$(git -C "$repo" rev-list --first-parent --count "$revision")
+source_epoch=$(git -C "$repo" show -s --format=%ct "$revision")
+pkgver="r$count.${revision:0:12}"
+archive="panora-$revision.tar.gz"
+
+release_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+release_version=${PANORA_RELEASE_VERSION:-}
+if [[ -n $release_version && ! $release_version =~ $release_pattern ]]; then
+  printf 'PANORA_RELEASE_VERSION must use the X.Y.Z release format.\n' >&2
+  exit 2
+fi
+release_tag=$(git -C "$repo" describe --tags --exact-match --match 'v[0-9]*.[0-9]*.[0-9]*' "$revision" 2>/dev/null || true)
+if [[ ${release_tag#v} =~ $release_pattern ]]; then
+  if [[ -n $release_version && v$release_version != "$release_tag" ]]; then
+    printf 'PANORA_RELEASE_VERSION does not match the release tag %s.\n' "$release_tag" >&2
+    exit 2
+  fi
+  release_version=${release_tag#v}
+fi
+
+package_epoch=0
+if [[ -n $release_version ]]; then
+  pkgver=$release_version
+  package_epoch=1
+fi
+
+build_numbers_shallow=$(git -C "$repo" rev-parse --is-shallow-repository)
+if [[ $build_numbers_shallow == true ]]; then
+  printf 'Build requires full Git history for a stable package version.\n' >&2
+  exit 1
+fi
+
+recipe=$(git -C "$repo" show "$revision:packaging/arch/PKGBUILD.in")
+mkdir -- "$build_dir"
+git -C "$repo" archive --format=tar.gz --prefix=panora/ \
+  --output="$(realpath -- "$build_dir")/$archive" "$revision"
+install_checksum=
+if git -C "$repo" cat-file -e "$revision:packaging/arch/panora.install" 2>/dev/null; then
+  git -C "$repo" show "$revision:packaging/arch/panora.install" > "$build_dir/panora.install"
+  read -r install_checksum _ < <(sha256sum -- "$build_dir/panora.install")
+fi
+read -r checksum _ < <(sha256sum -- "$build_dir/$archive")
+sed -e "s/@REVISION@/$revision/" -e "s/@PKGVER@/$pkgver/" \
+  -e "s/@PKG_EPOCH@/$package_epoch/" -e "s/@RELEASE_VERSION@/$release_version/" \
+  -e "s/@INSTALL_SHA256@/$install_checksum/" -e "s/@SHA256@/$checksum/" <<<"$recipe" > "$build_dir/PKGBUILD"
+printf 'Prepared panora %s from %s in %s\n' "$pkgver" "$revision" "$build_dir"
+printf 'SOURCE_DATE_EPOCH=%s\n' "$source_epoch"

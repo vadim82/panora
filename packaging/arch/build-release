@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# != 2 || -z $1 || -z $2 ]]; then
+  printf 'Usage: %s REVISION NEW_BUILD_DIRECTORY\n' "$0" >&2
+  exit 2
+fi
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+revision=$(git -C "$script_dir" rev-parse --verify --end-of-options "$1^{commit}")
+epoch=$(git -C "$script_dir" show -s --format=%ct "$revision")
+"$script_dir/prepare-snapshot" "$revision" "$2"
+cd -- "$2"
+
+export SOURCE_DATE_EPOCH="$epoch" LC_ALL=C TZ=UTC
+export BUILDDIR="$PWD" PKGDEST="$PWD" SRCDEST="$PWD" SRCPKGDEST="$PWD" LOGDEST="$PWD"
+export PKGEXT=.pkg.tar.zst
+
+makepkg --cleanbuild --check --nosign
+package=$(makepkg --packagelist)
+if [[ $package != "$PWD"/panora-*-x86_64.pkg.tar.zst || $package == *$'\n'* || ! -f $package ]]; then
+  printf 'Expected one Panora x86-64 package in %s.\n' "$PWD" >&2
+  exit 1
+fi
+package=${package##*/}
+
+bsdtar -xOf "$package" .BUILDINFO > BUILDINFO
+bsdtar -xOf "$package" .PKGINFO > PKGINFO
+version=$(sed -n 's/^pkgver = //p' PKGINFO)
+recipe_version=$(sed -n 's/^pkgver=//p' PKGBUILD)
+recipe_epoch=$(sed -n 's/^epoch=//p' PKGBUILD)
+expected_prefix=$recipe_version
+if [[ -n $recipe_epoch && $recipe_epoch != 0 ]]; then
+  expected_prefix="$recipe_epoch:$recipe_version"
+fi
+read -r recipe_checksum _ < <(sha256sum PKGBUILD)
+if [[ $version != "$expected_prefix"-* || $package != "panora-$version-x86_64.pkg.tar.zst" ]] ||
+  ! grep -Fxq 'pkgname = panora' PKGINFO ||
+  ! grep -Fxq 'arch = x86_64' PKGINFO ||
+  ! grep -Fxq "builddate = $epoch" BUILDINFO ||
+  ! grep -Fxq "pkgbuild_sha256sum = $recipe_checksum" BUILDINFO; then
+  printf 'Package metadata did not match the selected Arch build.\n' >&2
+  exit 1
+fi
+
+# Keep release asset names portable. The package retains its epoch in .PKGINFO.
+release_package="panora-${version#*:}-x86_64.pkg.tar.zst"
+if [[ $package != "$release_package" ]]; then
+  mv -T -- "$package" "$release_package"
+  package=$release_package
+fi
+
+inputs=("panora-$revision.tar.gz" PKGBUILD)
+if [[ -f panora.install ]]; then
+  bsdtar -xOf "$package" .INSTALL | cmp - panora.install
+  inputs+=(panora.install)
+fi
+sha256sum -- "${inputs[@]}" "$package" > SHA256SUMS
+sha256sum -c SHA256SUMS
+{
+  printf 'Revision: %s\nSOURCE_DATE_EPOCH=%s\nArtifact: %s\n' "$revision" "$epoch" "$package"
+  cat SHA256SUMS
+  printf 'Package metadata: BUILDINFO, PKGINFO\n'
+} | tee RELEASE-RECEIPT.txt

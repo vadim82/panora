@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Panora
+Comment=Rotate and manage wallpapers
+Exec=/usr/bin/panora-ui
+TryExec=/usr/bin/panora-ui
+Icon=panora
+Terminal=false
+Categories=Utility;

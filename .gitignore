@@ -1,0 +1,25 @@
+# Local credentials and machine-specific configuration
+.env
+.env.*
+!.env.example
+*.local
+
+# Build output, temporary files, and runtime data
+/bin/
+/build/
+/dist/
+/tmp/
+/cache/
+/downloads/
+*.log
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
+
+# Python quality-tool bytecode.
+__pycache__/
+
+# Frontend dependencies, local dev caches and generated embedded assets.
+node_modules/
+/ui/frontend/dist/

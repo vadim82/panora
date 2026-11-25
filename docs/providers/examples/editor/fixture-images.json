@@ -1,0 +1,48 @@
+{
+  "id": "fixture-images",
+  "name": "Fixture images",
+  "version": "1.0.0",
+  "protocol": 2,
+  "command": ["fixture.py", "fixture-images"],
+  "editor": {
+    "version": 1,
+    "groups": [
+      {
+        "id": "location",
+        "label": "Location",
+        "fields": [
+          {"key": "root", "label": "Image directory", "control": "text", "required": true}
+        ]
+      },
+      {
+        "id": "collection",
+        "label": "Collection",
+        "fields": [
+          {
+            "key": "album",
+            "label": "Album",
+            "control": "select",
+            "default": "all",
+            "options": [
+              {"value": "all", "label": "All images"},
+              {"value": "featured", "label": "Featured"}
+            ]
+          },
+          {
+            "key": "caption",
+            "label": "Featured caption",
+            "control": "text",
+            "visible_when": {"key": "album", "equals": "featured"}
+          },
+          {
+            "key": "tags",
+            "label": "Tag",
+            "control": "multivalue",
+            "default": [],
+            "suggest": "suggest"
+          }
+        ]
+      }
+    ]
+  }
+}

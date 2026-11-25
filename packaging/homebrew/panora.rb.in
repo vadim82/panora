@@ -1,0 +1,62 @@
+class PanoraPrivateReleaseDownload < AbstractFileDownloadStrategy
+  def fetch(timeout: nil)
+    return if cached_location.file?
+
+    gh = HOMEBREW_PREFIX/"bin/gh"
+    raise "Install GitHub CLI with brew install gh, then run gh auth login." unless gh.executable?
+
+    match = %r{\Ahttps://github\.com/vadim82/panora/releases/download/(v[\d.]+)/(panora-[\w.-]+\.zip)\z}.match(url)
+    raise "Expected a Panora release asset URL." unless match
+
+    tag, asset = match.captures
+    cached_location.dirname.mkpath
+    Dir.mktmpdir("panora-release", cached_location.dirname) do |directory|
+      command!(gh, args: ["release", "download", tag, "--repo", "vadim82/panora",
+                          "--pattern", asset, "--dir", directory], timeout: timeout || 300)
+      File.rename(Pathname(directory)/asset, cached_location)
+    end
+  end
+end
+
+cask "panora" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "@URL@",
+      using: PanoraPrivateReleaseDownload
+  name "Panora"
+  desc "Wallpaper rotation and playback controls"
+  homepage "https://github.com/vadim82/panora"
+
+  depends_on arch: :arm64
+
+  preflight_steps do
+    run "/bin/zsh", args: ["-fc", <<~SHELL, "panora", "@MINIMUM_MACOS@"], print_stderr: true
+      autoload -Uz is-at-least
+      if ! is-at-least "$1" "$(/usr/bin/sw_vers -productVersion)"; then
+        print -u2 "This Panora release requires macOS $1 or later."
+        exit 1
+      fi
+    SHELL
+  end
+
+  uninstall_preflight_steps do
+    run "/bin/bash", args: ["-c", <<~'SHELL', "panora", "{{appdir}}/Panora.app"], print_stderr: true
+      set -o pipefail
+      if ! /bin/ps -ww -U "$(/usr/bin/id -un)" -o comm= |
+        /usr/bin/awk -v prefix="$1/Contents/" 'index($0, prefix) == 1 { running = 1 } END { exit running }'
+      then
+        echo "Stop Panora in Background service settings and quit its client before replacing the app." >&2
+        exit 1
+      fi
+    SHELL
+  end
+
+  app "Panora.app"
+
+  caveats <<~EOS
+    Before upgrading a running copy, stop the background service and quit Panora.
+    Before uninstalling, use Prepare to move or remove app in Background service settings.
+    This private app is signed ad hoc. macOS may require approval in Privacy & Security.
+  EOS
+end

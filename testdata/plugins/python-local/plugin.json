@@ -1,0 +1,7 @@
+{
+  "id": "local",
+  "name": "Python local contract fixture",
+  "version": "0.1.0",
+  "protocol": 2,
+  "command": ["/usr/bin/env", "python3", "./source.py"]
+}
