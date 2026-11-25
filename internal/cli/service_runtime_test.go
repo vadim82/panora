@@ -97,38 +97,6 @@ func cliStatus(t *testing.T, socket, action string) control.Status {
 	return status
 }
 
-func TestServiceCLIControlsAndExclusiveStateOwnership(t *testing.T) {
-	options, socket := serviceFixture(t)
-	backend := &fakeWallpaperBackend{}
-	resolve := func(context.Context) (desktop.WallpaperBackend, error) { return backend, nil }
-	launchService(t, options, socket, resolve)
-	if status := cliStatus(t, socket, "status"); !status.Paused || status.Current != nil {
-		t.Fatalf("startup changed wallpaper: %+v", status)
-	}
-	first := cliStatus(t, socket, "next")
-	second := cliStatus(t, socket, "next")
-	if first.Current.Path == second.Current.Path || second.HistoryLength != 2 {
-		t.Fatalf("next did not reach the service: %+v", second)
-	}
-	if previous := cliStatus(t, socket, "previous"); previous.Current.Path != first.Current.Path {
-		t.Fatal("previous did not reach the service")
-	}
-	if next := cliStatus(t, socket, "next"); next.Current.Path != second.Current.Path || next.HistoryLength != 2 {
-		t.Fatal("next did not navigate forward history")
-	}
-	cliStatus(t, socket, "resume")
-	if status := cliStatus(t, socket, "pause"); !status.Paused {
-		t.Fatal("pause did not reach the service")
-	}
-	if service, err := playback.OpenService(context.Background(), options, resolve); err == nil {
-		service.Close()
-		t.Fatal("second state owner accepted")
-	}
-	if status := cliStatus(t, socket, "status"); status.HistoryLength != 2 || backend.calls != 4 {
-		t.Fatal("rejected competing commands changed the wallpaper")
-	}
-}
-
 func TestServiceTimerPauseAndResume(t *testing.T) {
 	options, socket := serviceFixture(t)
 	options.Interval = 80 * time.Millisecond

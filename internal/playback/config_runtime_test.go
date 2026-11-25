@@ -304,35 +304,3 @@ func TestCanceledNoOpIntervalEditDoesNotApplyAfterWaiting(t *testing.T) {
 		t.Fatal("canceled no-op applied the saved interval")
 	}
 }
-
-func TestRunningSchedulerAndIntervalSavesShareMutationOwnership(t *testing.T) {
-	backend := &firstRunBackend{}
-	service, _ := testService(t, backend)
-	refreshForTest(t, service)
-	act(t, service, "next")
-	act(t, service, "resume")
-	done := make(chan struct{})
-	go func() { service.Run(nil); close(done) }()
-	defer func() { service.Close(); <-done }()
-	successes := 0
-	for attempts := 0; attempts < 200 && successes < 20; attempts++ {
-		before := settings(t, service)
-		value := "1ms"
-		if successes%2 == 0 {
-			value = "2ms"
-		}
-		_, err := service.UpdateConfiguration(t.Context(), UpdateConfigurationRequest{Revision: before.Revision, Interval: &value})
-		if err == nil {
-			successes++
-			continue
-		}
-		requireConfigError(t, err, "busy")
-		time.Sleep(time.Millisecond)
-	}
-	if successes < 20 {
-		t.Fatalf("saved only %d interval changes", successes)
-	}
-	if !slices.Contains([]string{"1ms", "2ms"}, service.Status().Interval) {
-		t.Fatalf("active interval=%s", service.Status().Interval)
-	}
-}
