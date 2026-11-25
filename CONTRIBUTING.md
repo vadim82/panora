@@ -60,9 +60,10 @@ for running `panora serve` directly with the normal wallpaper backend.
 
 ### Run checks
 
-Run `mise exec -- task check` before submitting. After Go edits, run
-`mise exec -- task fmt` first. `mise exec -- task setup` installs the
-prek pre-commit hook. It checks staged Go formatting, frontend formatting and
+Run `mise exec -- task check` before submitting. This runs the Go race
+detector locally. GitHub Actions runs the Go suites without race
+instrumentation. After Go edits, run `mise exec -- task fmt` first.
+`mise exec -- task setup` installs the prek pre-commit hook. It checks staged Go formatting, frontend formatting and
 lint, and diff whitespace without rewriting files. Use
 `mise exec -- prek run` to run the staged checks on demand.
 
