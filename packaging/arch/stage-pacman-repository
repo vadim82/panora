@@ -17,9 +17,9 @@ fingerprint='8E2A94B8A2B91252C5B347FF787956F904D9C8B6'
 index="$pages/arch/x86_64"
 source_key="$pages/arch/panora-signing-key.asc"
 filename=${package##*/}
-version_pattern='panora-((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))-1-x86_64\.pkg\.tar\.zst'
-[[ $filename =~ ^$version_pattern$ ]] || fail "Expected a versioned Panora x86-64 package."
-version="1:${BASH_REMATCH[1]}-1"
+release_pattern='((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))'
+[[ $filename =~ ^panora-$release_pattern-1-x86_64\.pkg\.tar\.zst$ ]] || fail "Expected a versioned Panora x86-64 package."
+version="${BASH_REMATCH[1]}-1"
 [[ $signer =~ ^[A-F0-9]{40}$ ]] || fail "Specify a full uppercase OpenPGP signing fingerprint."
 [[ -d $index && -f $source_key ]] || fail "Panora Pages package directory or public key is missing."
 
@@ -44,7 +44,15 @@ verify "$index/panora.files" "$index/panora.files.sig"
 current_version=$(bsdtar -xOf "$index/panora.db" 'panora-*/desc' |
   awk '$0 == "%VERSION%" { getline; print }')
 [[ -n $current_version ]] || fail "The signed package database has no Panora record."
-case $(vercmp "$version" "$current_version") in
+comparison_version=$current_version
+if [[ $current_version =~ ^1:$release_pattern-1$ ]]; then
+  # Cross the old epoch only for a strictly newer release. Its signed index
+  # is still verified above, and later publishes use normal version ordering.
+  comparison_version=${current_version#1:}
+  [[ $(vercmp "$version" "$comparison_version") == 1 ]] ||
+    fail "The epochless package must have a newer release version than the legacy package."
+fi
+case $(vercmp "$version" "$comparison_version") in
   -1) fail "The signed package repository already contains a newer Panora release." ;;
   0)
     cmp -- "$package" "$index/$filename" || fail "The published package for this version differs."
@@ -66,6 +74,9 @@ repo-add --nocolor --include-sigs --sign --key "$signer!" \
 verify "$staging/$filename" "$staging/$filename.sig"
 for suffix in db files; do
   verify "$staging/panora.$suffix.tar.gz" "$staging/panora.$suffix.tar.gz.sig"
+  staged_version=$(bsdtar -xOf "$staging/panora.$suffix.tar.gz" 'panora-*/desc' |
+    awk '$0 == "%VERSION%" { getline; print }')
+  [[ $staged_version == "$version" ]] || fail "The staged package index has the wrong version."
 done
 
 for artifact in "$filename" "$filename.sig" panora.db panora.db.sig panora.files panora.files.sig; do

@@ -32,6 +32,7 @@ fi
 package_epoch=0
 if [[ -n $release_version ]]; then
   pkgver=$release_version
+  # Older snapshots still need the epoch in their recorded recipe template.
   package_epoch=1
 fi
 
