@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Install Panora on Omarchy</title>
+<style>
+body { font: 1rem/1.55 system-ui, sans-serif; margin: 3rem auto; max-width: 48rem; padding: 0 1rem; }
+code, pre { font-family: ui-monospace, monospace; }
+pre { overflow: auto; padding: 1rem; background: #f0f2f3; color: #202426; border-radius: .35rem; }
+</style>
+<main>
+<h1>Install Panora on Omarchy</h1>
+<p>Panora rotates wallpapers from your active theme, local folders, and saved Wallhaven searches. This package targets Omarchy on Arch Linux x86-64.</p>
+<h2>Add the Panora package repository</h2>
+<p>Download the <a href="arch/panora-signing-key.asc">Panora public key</a> and verify this fingerprint before trusting it.</p>
+<pre><code>gpg --show-keys --fingerprint ./panora-signing-key.asc
+8E2A 94B8 A2B9 1252 C5B3 47FF 7879 56F9 04D9 C8B6</code></pre>
+<p>After verifying the fingerprint, add the key to your pacman keyring and trust it locally.</p>
+<pre><code>sudo pacman-key --add ./panora-signing-key.asc
+sudo pacman-key --lsign-key 8E2A94B8A2B91252C5B347FF787956F904D9C8B6</code></pre>
+<p>Append this <a href="arch/panora.conf">repository entry</a> to <code>/etc/pacman.conf</code>. Panora requires valid signatures for packages and the repository database.</p>
+<pre><code>[panora]
+SigLevel = Required TrustedOnly
+Server = https://vadim82.github.io/panora/arch/$arch</code></pre>
+<h2>Find, install, and update</h2>
+<p>Run <strong>Update → Omarchy</strong> to sync the repository with the rest of your system. You can then find and install Panora.</p>
+<pre><code>yay -Ss panora
+yay -S panora</code></pre>
+<p>Open <strong>Panora</strong> from the launcher. On Omarchy 4.5, its service adds a bar button on first use. Use <strong>Update → Omarchy</strong> for future upgrades. If you refresh your pacman configuration, restore the Panora entry or arrange to reapply it with the <a href="https://omarchy.org/manual/dotfiles/#running-scripts-on-system-events">pre-refresh-pacman hook</a>.</p>
+<p><a href="https://github.com/vadim82/panora">Panora source and user guide</a> · <a href="https://github.com/vadim82/panora/releases">GitHub Releases and direct downloads</a></p>
+</main>
