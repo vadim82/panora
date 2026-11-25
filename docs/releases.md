@@ -8,6 +8,17 @@ package in an isolated environment before distribution.
 Public macOS distribution requires Developer ID signing and notarization; see
 [macOS development](macos-development.md#prepare-a-macos-release-archive).
 
+## Draft an Arch release on GitHub
+
+Once the **Go** workflow passes on `main`, open **Actions → Draft Arch
+release → Run workflow**. Select `main` and enter the version as `X.Y.Z`.
+The workflow builds the dispatched commit and attaches the package, source
+archive, checksum list, and build receipt to a draft. It will stop if a
+release already uses that version.
+
+Review the release notes and package, including an isolated install or upgrade,
+before publishing the draft.
+
 ## Stage a shared release
 
 Build the Arch package and macOS archive from the same Git commit and with
