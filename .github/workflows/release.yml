@@ -7,6 +7,10 @@ on:
         description: Release version (X.Y.Z)
         required: true
         type: string
+      artifact_only:
+        description: Build and stage artifacts without creating a GitHub draft
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -23,6 +27,7 @@ jobs:
       contents: read
     env:
       VERSION: ${{ inputs.version }}
+      ARTIFACT_ONLY: ${{ inputs.artifact_only }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Check the version and CI status
@@ -44,7 +49,7 @@ jobs:
             echo "The Go workflow must pass for $GITHUB_SHA before release." >&2
             exit 1
           }
-          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          if [[ "$ARTIFACT_ONLY" != true ]] && gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "A release for v$VERSION already exists." >&2
             exit 1
           fi
@@ -188,6 +193,7 @@ jobs:
   draft:
     name: Create GitHub release draft
     needs: stage
+    if: inputs.artifact_only == false
     runs-on: ubuntu-latest
     permissions:
       contents: write
