@@ -158,24 +158,11 @@ func (p *Provider) Discover(ctx context.Context, params source.DiscoverParams) (
 		}
 	}
 
-	categories := c.Categories
-	if categories == "" || categories == "000" {
-		categories = "111"
-	}
-	q := url.Values{
-		"q": {searchQuery(c)}, "categories": {categories}, "purity": {"100"},
-		"sorting": {c.Sorting}, "order": {c.Order}, "page": {strconv.Itoa(position.Page)},
-	}
-	if c.Sorting == "toplist" {
-		q.Set("topRange", c.TopRange)
-	}
-	if colors := searchColors(c.Colors); len(colors) > 0 {
-		q.Set("colors", strings.Join(colors, ","))
-	}
+	q := searchValues(c, f)
+	q.Set("page", strconv.Itoa(position.Page))
 	if position.Seed != "" {
 		q.Set("seed", position.Seed)
 	}
-	setGeometryQuery(q, f)
 	operation, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -238,6 +225,31 @@ func (p cursor) valid(fingerprint string, maxPages int, random bool) bool {
 		p.Page >= 1 && p.Page <= maxPages &&
 		p.Offset >= 0 && p.Offset < wallhavenPageSize &&
 		(random && randomSeed.MatchString(p.Seed) || !random && p.Seed == "")
+}
+
+// BrowserSearchURL renders the public search page for the provider's query.
+func (*Provider) BrowserSearchURL(c Config, filter *source.FilterHints) string {
+	page := url.URL{Scheme: "https", Host: "wallhaven.cc", Path: "/search", RawQuery: searchValues(c, filter).Encode()}
+	return page.String()
+}
+
+func searchValues(c Config, filter *source.FilterHints) url.Values {
+	categories := c.Categories
+	if categories == "" || categories == "000" {
+		categories = "111"
+	}
+	q := url.Values{
+		"q": {searchQuery(c)}, "categories": {categories}, "purity": {"100"},
+		"sorting": {c.Sorting}, "order": {c.Order},
+	}
+	if c.Sorting == "toplist" {
+		q.Set("topRange", c.TopRange)
+	}
+	if colors := searchColors(c.Colors); len(colors) > 0 {
+		q.Set("colors", strings.Join(colors, ","))
+	}
+	setGeometryQuery(q, filter)
+	return q
 }
 
 func searchQuery(c Config) string {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/vadim82/panora/internal/playback"
 )
@@ -14,7 +15,17 @@ type searchConfigurationService interface {
 	RemoveSearch(context.Context, playback.RemoveSearchRequest) (playback.Configuration, error)
 }
 
+const searchCandidatesEndpoint = "/v1/wallhaven/candidates"
+
+type searchCandidatesService interface {
+	CountSearchCandidates(context.Context, string, string) (playback.SearchCandidates, error)
+}
+
 func handleSearchConfiguration(ctx context.Context, w http.ResponseWriter, r *http.Request, service Service) bool {
+	if r.URL.Path == searchCandidatesEndpoint {
+		handleSearchCandidates(ctx, w, r, service)
+		return true
+	}
 	if r.URL.Path != "/v1/configuration/searches" {
 		return false
 	}
@@ -73,4 +84,35 @@ func UpdateSearch(ctx context.Context, path string, edit playback.UpdateSearchRe
 }
 func RemoveSearch(ctx context.Context, path string, edit playback.RemoveSearchRequest) (playback.Configuration, error) {
 	return editConfiguration(ctx, path, http.MethodDelete, "/v1/configuration/searches", edit)
+}
+
+func handleSearchCandidates(ctx context.Context, w http.ResponseWriter, r *http.Request, service Service) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		writeAPIError(w, http.StatusMethodNotAllowed, "method_not_allowed", "use GET for Wallhaven candidate counts")
+		return
+	}
+	params, err := url.ParseQuery(r.URL.RawQuery)
+	body, bodyErr := io.ReadAll(io.LimitReader(r.Body, 1))
+	if err != nil || bodyErr != nil || len(body) != 0 || len(params) != 2 ||
+		len(params["id"]) != 1 || len(params["revision"]) != 1 ||
+		params.Get("id") == "" || len(params.Get("id")) > 128 ||
+		params.Get("revision") == "" || len(params.Get("revision")) > 128 {
+		writeAPIError(w, http.StatusBadRequest, "invalid_request", "provide one search id and configuration revision and no request body")
+		return
+	}
+	reader, ok := service.(searchCandidatesService)
+	if !ok {
+		writeServiceError(w, &Error{Code: "unsupported", Message: "Wallhaven candidate counts are unavailable"})
+		return
+	}
+	result, err := reader.CountSearchCandidates(ctx, params.Get("id"), params.Get("revision"))
+	writeResult(w, result, err)
+}
+
+func CountSearchCandidates(ctx context.Context, path, id, revision string) (playback.SearchCandidates, error) {
+	params := url.Values{"id": {id}, "revision": {revision}}
+	var result playback.SearchCandidates
+	err := requestBody(ctx, path, http.MethodGet, searchCandidatesEndpoint+"?"+params.Encode(), nil, &result, 65536)
+	return result, err
 }

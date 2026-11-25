@@ -106,3 +106,44 @@ func TestSearchConfigurationRoutes(t *testing.T) {
 		t.Fatal("query parameters accepted")
 	}
 }
+
+type searchCandidateFixture struct {
+	searchConfigurationFixture
+	request string
+}
+
+func (s *searchCandidateFixture) CountSearchCandidates(_ context.Context, id, revision string) (playback.SearchCandidates, error) {
+	s.request = id + "/" + revision
+	eligible := 7
+	return playback.SearchCandidates{Version: APIVersion, Discovered: 221, Eligible: &eligible}, nil
+}
+
+func TestWallhavenCandidateCountRoute(t *testing.T) {
+	for _, tc := range []struct {
+		method, query, body string
+		status              int
+	}{
+		{"GET", "id=space&revision=saved", "", 200},
+		{"POST", "id=space&revision=saved", "", 405},
+		{"GET", "id=space&id=other&revision=saved", "", 400},
+		{"GET", "id=space", "", 400},
+		{"GET", "id=space&revision=saved&extra=1", "", 400},
+		{"GET", "id=space&revision=saved", "data", 400},
+	} {
+		fixture := &searchCandidateFixture{}
+		response := httptest.NewRecorder()
+		Handler(fixture).ServeHTTP(response, httptest.NewRequest(tc.method, searchCandidatesEndpoint+"?"+tc.query, strings.NewReader(tc.body)))
+		if response.Code != tc.status || fixture.writes != 0 {
+			t.Fatalf("%s %s: %d %s", tc.method, tc.query, response.Code, response.Body)
+		}
+		if tc.status == 200 {
+			var result playback.SearchCandidates
+			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil ||
+				result.Discovered != 221 || result.Eligible == nil || *result.Eligible != 7 || fixture.request != "space/saved" {
+				t.Fatalf("candidate count: %+v, request %q, %v", result, fixture.request, err)
+			}
+		} else if fixture.request != "" {
+			t.Fatalf("invalid input reached the service: %s %s", tc.method, tc.query)
+		}
+	}
+}

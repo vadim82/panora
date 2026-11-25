@@ -165,6 +165,7 @@
 
 .search-picks,
 .search-color-tools,
+.search-candidate-count,
 .search-sort,
 .search-editor .search-editor-footer {
   display: flex;
@@ -175,6 +176,10 @@
 
 .search-picks {
   margin-top: 8px;
+}
+
+.search-candidate-count {
+  margin-top: 12px;
 }
 
 .search-picks .ui-button,

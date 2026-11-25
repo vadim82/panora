@@ -114,6 +114,15 @@ describe('Source health', () => {
     expect(
       screen.queryByRole('button', { name: /retry now|cancel check/i }),
     ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Show Wallhaven URL' }));
+    const url = await screen.findByRole('textbox', { name: 'Wallhaven search URL' });
+    expect(url).toHaveValue('https://wallhaven.cc/search?q=nature&purity=100');
+    expect(mock.CountSearchCandidates).toHaveBeenCalledWith('search-private-id', 'reviewed');
+    await user.click(screen.getByRole('button', { name: 'Copy URL' }));
+    expect(await screen.findByText('Wallhaven URL copied.')).toBeVisible();
+    expect(await navigator.clipboard.readText()).toBe(
+      'https://wallhaven.cc/search?q=nature&purity=100',
+    );
     await user.click(screen.getByRole('button', { name: 'Review folder' }));
     await waitFor(() => expect(screen.getByText('Folder editor is open')).toBeVisible());
     await user.click(screen.getByRole('button', { name: 'Refresh status' }));

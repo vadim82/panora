@@ -3,7 +3,7 @@
   --control-height: 34px;
 }
 
-:is(.settings-panel, .folder-test, .theme-rules)
+:is(.settings-panel, .folder-test, .theme-rules, .source-search-url)
   :is(input[type='text'], input[type='number'], select) {
   display: block;
   box-sizing: border-box;

@@ -400,6 +400,13 @@ export function installFixture(
         },
       },
     }),
+    CountSearchCandidates: async () => ({
+      counts: {
+        discovered: 480,
+        eligible: 27,
+        search_url: 'https://wallhaven.cc/search?q=nature&purity=100',
+      },
+    }),
     RulePreview: async (edit) => {
       const conflict = checkRevision(edit.revision);
       if (conflict) return conflict;

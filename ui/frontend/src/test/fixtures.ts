@@ -98,6 +98,13 @@ export function installBridge() {
     EditOmarchyTheme: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
     OmarchyThemePreview: vi.fn(async () => ({})),
     ThemePalette: vi.fn(async () => ({ colors: ['#0066cc', '#66cccc', '#424153'] })),
+    CountSearchCandidates: vi.fn(async () => ({
+      counts: {
+        discovered: 221,
+        eligible: 7,
+        search_url: 'https://wallhaven.cc/search?q=nature&purity=100',
+      },
+    })),
     RulePreview: vi.fn(async () => ({
       preview: {
         matched: 1,
