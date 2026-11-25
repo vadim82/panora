@@ -113,6 +113,7 @@ config is limited to 1 MiB and must declare version 1.
 | `filters.min_height` | `1` | Positive minimum height; the default adds no optional size restriction |
 | `filters.ratio` | `"any"` | `any`, one positive integer custom ratio such as `32:9`, `presets`, `monitor`, or `monitor-similar` |
 | `filters.ratio_presets` | `[]` | Up to 12 distinct presets or integer `width:height` ratios when ratio is `presets`; otherwise empty |
+| `filters.ratio_tolerance_pixels` | `10` | Nonnegative whole number up to 9,007,199,254,740,991. Applies to pixel-based aspect ratios for all sources |
 
 Enable at least one wallpaper source to begin playback. Configurations with
 no enabled source are valid idle settings. Local accepts folders and Wallhaven
@@ -312,19 +313,20 @@ coalesce into one action.
 
 Ratio components and dimensions must be positive integers fitting the platform's
 `int` type (up to 9223372036854775807 on 64-bit builds). Overflowing values are
-rejected. Common eligibility uses exact arithmetic with one-pixel ratio tolerance;
-minimum size remains strict. For example, 5120×1439 is close enough to 32:9 but
-fails a minimum height of 1440.
+rejected. For pixel-based aspect ratios, either dimension can differ from the
+ideal shape by up to `filters.ratio_tolerance_pixels`. The default is 10 pixels.
+Use 0 to require an exact ratio. The tolerance applies to source-specific ratios
+and shared ratios, while minimum and exact resolutions stay strict. For example,
+5120×1439 is close enough to 32:9 but fails a minimum height of 1440.
 
 To accept several shapes, set `ratio = "presets"` and
 `ratio_presets = ["16:9", "21:9"]`. Supported preset names are `16:9`, `16:10`,
 `21:9`, `32:9`, `4:3`, `3:2`, `1:1` and `9:16`. Any selected preset can match;
 neither minimum dimension is relaxed. The rounded `21:9` preset accepts exact
-7:3, 64:27 (for example, 2560×1080) and 43:18 (3440×1440), each with the same
-one-pixel tolerance. A custom `ratio = "21:9"` retains its original exact 7:3
-semantics.
+7:3, 64:27 (for example, 2560×1080) and 43:18 (3440×1440), each with the configured
+pixel tolerance. A custom `ratio = "21:9"` uses only the 7:3 shape.
 
-Existing version-1 Any/custom files keep their behavior and need no conversion.
+Existing version-1 files use the 10-pixel default and need no conversion.
 The optional preset field is omitted when empty. Older Panora builds reject
 `presets` and the new field rather than silently interpreting them as Any.
 Changing away from presets through the API must also clear `ratio_presets`.
@@ -345,8 +347,8 @@ geometry queries.
 `ratio = "monitor-similar"`. It uses the same display geometry and accepts an
 image whose width divided by height is within 5% of the display ratio, including
 both boundaries. For a 3024 × 1964 display, this includes 3:2 and 16:10. The
-search’s minimum width and height are configured independently. The existing
-`monitor` rule retains its one-pixel tolerance.
+search’s minimum width and height are configured independently. The `monitor`
+rule uses the configured pixel tolerance.
 
 Configuration reads and explicit preference saves return `rule_resolution` with
 state, resolved integer ratio, reason, backend and display when available.

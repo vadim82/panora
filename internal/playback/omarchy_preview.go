@@ -82,13 +82,13 @@ func (s *Service) OmarchyThemePreview(ctx context.Context, page, limit int) (Oma
 		}
 	}
 	rules := effectiveSourceRules(config, config.OmarchyTheme.ImageRules)
-	ratio, _ := ParseRatioRule(rules.Ratio, rules.RatioPresets)
+	ratio, _ := parseRatioRule(rules.Ratio, rules.RatioPresets, config.RatioTolerancePixels())
 	s.statusMu.RLock()
 	backend := s.effectiveSettings.Backend
 	s.statusMu.RUnlock()
 	ratio, resolution := s.resolveRatioRule(ctx, ratio, backend)
 	digest := sha256.New()
-	fmt.Fprint(digest, active.Generation, active.ID, collection.warning, palette, rules, resolution)
+	fmt.Fprint(digest, active.Generation, active.ID, collection.warning, palette, rules, resolution, config.RatioTolerancePixels())
 	if limit != 0 {
 		result.Page = min(page, max(1, (result.Total+limit-1)/limit))
 	}

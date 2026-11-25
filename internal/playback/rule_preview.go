@@ -69,7 +69,9 @@ func (s *Service) PreviewRules(ctx context.Context, request RulePreviewRequest) 
 	if validateSourceRules(&rules) != nil || request.Rules.MaxDepth < 0 || request.ProviderID == "" && len(rules.ExactResolutions) > 0 {
 		return RulePreview{}, &Error{Code: "invalid_settings", Message: "provide positive minimum dimensions, nonnegative depth and a valid image ratio rule"}
 	}
-	ratio, _ := ParseRatioRule(rules.Ratio, rules.RatioPresets)
+	if pixels := request.Rules.RatioTolerancePixels; pixels != nil && !validRatioTolerance(*pixels) {
+		return RulePreview{}, &Error{Code: "invalid_settings", Message: ratioToleranceError}
+	}
 	operation, cancel := context.WithTimeout(ctx, RulePreviewTimeout)
 	defer cancel()
 	stop := context.AfterFunc(s.ctx, cancel)
@@ -91,6 +93,11 @@ func (s *Service) PreviewRules(ctx context.Context, request RulePreviewRequest) 
 	if configRevision(data) != request.Revision {
 		return RulePreview{}, &Error{Code: "config_conflict", Message: "settings changed; reload them before previewing this draft"}
 	}
+	tolerance := config.RatioTolerancePixels()
+	if pixels := request.Rules.RatioTolerancePixels; pixels != nil {
+		tolerance = *pixels
+	}
+	ratio, _ := parseRatioRule(rules.Ratio, rules.RatioPresets, tolerance)
 	result := RulePreview{Version: StatusVersion, Revision: request.Revision, Rules: request.Rules, Scope: "inherited_catalog", Validation: "local_headers_and_validated_cache", Limit: catalog.MaxRulePreviewImages, Complete: true}
 	partial := func(reason string) { result.Complete = false; result.Reason = reason }
 	scoped := request.ProviderID != ""

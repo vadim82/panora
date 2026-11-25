@@ -8,7 +8,7 @@ import (
 )
 
 func TestSelectedPresetsUseExactIntegerToleranceAndRoundedAliases(t *testing.T) {
-	rule, err := ParseRatioRule("presets", []string{"16:9", "21:9", "1:1"})
+	rule, err := parseRatioRule("presets", []string{"16:9", "21:9", "1:1"}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,6 +33,76 @@ func TestSelectedPresetsUseExactIntegerToleranceAndRoundedAliases(t *testing.T) 
 	boundary, err := ParseRatioRule(fmt.Sprintf("%d:1", maxInt), nil)
 	if err != nil || !boundary.matches(ImageInfo{Width: maxInt, Height: 1}) {
 		t.Fatalf("exact boundary ratio failed: %v", err)
+	}
+}
+
+func TestPixelRatioToleranceDefaultAndBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		setting string
+		pixels  int
+	}{
+		{pixels: 10},
+		{setting: "ratio_tolerance_pixels=0", pixels: 0},
+		{setting: "ratio_tolerance_pixels=4", pixels: 4},
+	} {
+		config, ratio, err := ParseConfig([]byte("version=1\n[filters]\nratio='16:9'\n" + tc.setting))
+		if err != nil || config.RatioTolerancePixels() != tc.pixels {
+			t.Fatalf("setting %q: got tolerance %d, err %v", tc.setting, config.RatioTolerancePixels(), err)
+		}
+		if !ratio.matches(ImageInfo{Width: 1600, Height: 900 + tc.pixels}) ||
+			ratio.matches(ImageInfo{Width: 1600, Height: 901 + tc.pixels}) {
+			t.Fatalf("setting %q did not honor the %d-pixel boundary", tc.setting, tc.pixels)
+		}
+	}
+}
+
+func TestPixelRatioToleranceEditRechecksCustomSourceWithoutRediscovery(t *testing.T) {
+	root := t.TempDir()
+	writeScanImage(t, filepath.Join(root, "almost-wide.png"), 320, 185)
+	service, path, backend := configurationFixture(t, localTOML(root)+
+		"[providers.folders.image_rules]\nmin_width=320\nmin_height=180\nratio='presets'\nratio_presets=['16:9']\n")
+	refreshForTest(t, service)
+	before := settings(t, service)
+	config, _, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputRevision := config.InputRevision("local", "home")
+	request := RulePreviewRequest{Revision: before.Revision, ProviderID: "local", InputID: "home",
+		Rules: ImageRules{MinWidth: 320, MinHeight: 180, MaxDepth: 2, Ratio: "presets", RatioPresets: []string{"16:9"}}}
+	preview, err := service.PreviewRules(t.Context(), request)
+	if err != nil || preview.Matched != 1 {
+		t.Fatalf("default tolerance preview=%+v %v", preview, err)
+	}
+	act(t, service, "next")
+	request.Rules.RatioTolerancePixels = configValue(0)
+	preview, err = service.PreviewRules(t.Context(), request)
+	if err != nil || preview.Reasons.RatioMismatch != 1 || backend.calls.Load() != 1 {
+		t.Fatalf("draft tolerance preview=%+v %v", preview, err)
+	}
+	_, err = service.UpdateConfiguration(t.Context(), UpdateConfigurationRequest{
+		Revision: before.Revision, RatioTolerancePixels: configValue(-1),
+	})
+	requireConfigError(t, err, "invalid_settings")
+	edited, err := service.UpdateConfiguration(t.Context(), UpdateConfigurationRequest{
+		Revision: before.Revision, RatioTolerancePixels: configValue(0),
+	})
+	if err != nil || edited.Revision == before.Revision || edited.Rules.RatioTolerancePixels == nil || *edited.Rules.RatioTolerancePixels != 0 {
+		t.Fatalf("saved zero tolerance=%+v %v", edited.Rules, err)
+	}
+	config, _, err = LoadConfig(path)
+	if err != nil || config.RatioTolerancePixels() != 0 || config.InputRevision("local", "home") != inputRevision {
+		t.Fatalf("persisted tolerance=%d revision=%s err=%v", config.RatioTolerancePixels(), config.InputRevision("local", "home"), err)
+	}
+	_, err = service.PreviewRules(t.Context(), request)
+	requireConfigError(t, err, "config_conflict")
+	request.Revision, request.Rules.RatioTolerancePixels = edited.Revision, nil
+	preview, err = service.PreviewRules(t.Context(), request)
+	if err != nil || preview.Reasons.RatioMismatch != 1 {
+		t.Fatalf("saved zero tolerance preview=%+v %v", preview, err)
+	}
+	if _, err = service.Action(t.Context(), "next"); err == nil || backend.calls.Load() != 1 {
+		t.Fatalf("after saving zero tolerance next returned %v and called desktop %d times", err, backend.calls.Load())
 	}
 }
 

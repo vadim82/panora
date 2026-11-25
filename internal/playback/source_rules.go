@@ -147,7 +147,7 @@ func (s *Service) resolveSourceRulesForBackend(ctx context.Context, config Confi
 	if !ok {
 		return rules, nil, RuleResolution{State: "unavailable", Reason: "outside_enabled_inputs"}
 	}
-	ratio, _ := ParseRatioRule(rules.Ratio, rules.RatioPresets) // Config was validated.
+	ratio, _ := parseRatioRule(rules.Ratio, rules.RatioPresets, config.RatioTolerancePixels()) // Config was validated.
 	ratio, resolution := s.resolveRatioRule(ctx, ratio, backend)
 	return rules, ratio, resolution
 }
@@ -174,7 +174,7 @@ func (s *Service) sourceRuleResolverForBackend(ctx context.Context, config Confi
 		rules, ok := configuredInputRules(config, identity.ProviderID, identity.InputID)
 		value := resolved{rules: rules, resolution: RuleResolution{State: "unavailable", Reason: "outside_enabled_inputs"}}
 		if ok {
-			ratio, _ := ParseRatioRule(rules.Ratio, rules.RatioPresets)
+			ratio, _ := parseRatioRule(rules.Ratio, rules.RatioPresets, config.RatioTolerancePixels())
 			if monitor, found := monitors[rules.Ratio]; found {
 				value.ratio, value.resolution = monitor.ratio, monitor.resolution
 			} else {

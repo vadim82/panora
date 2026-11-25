@@ -191,7 +191,8 @@ back. Configuration API desktop edits apply to the next wallpaper action;
 direct TOML edits require restarting `serve`.
 
 Use `scan` to see why local images pass or fail your saved rules. It inherits
-folder depth, minimum dimensions and ratio; explicit flags affect this scan only.
+folder depth, minimum dimensions, ratio and pixel tolerance. Explicit flags
+affect this scan only and use the saved pixel tolerance for any selected ratio.
 `--config` selects a different settings file. `--ratio monitor-similar`
 uses the [display’s shape with a 5% tolerance](configuration.md#match-monitor).
 Output includes effective rules, PASS/REJECT reasons and inspected-header counts.

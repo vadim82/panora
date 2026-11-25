@@ -46,12 +46,13 @@ type ConfiguredFolder struct {
 }
 
 type ImageRules struct {
-	ExactResolutions []string `json:"exact_resolutions,omitempty"`
-	MinWidth         int      `json:"min_width"`
-	MinHeight        int      `json:"min_height"`
-	MaxDepth         int      `json:"max_depth"`
-	Ratio            string   `json:"ratio"`
-	RatioPresets     []string `json:"ratio_presets"`
+	ExactResolutions     []string `json:"exact_resolutions,omitempty"`
+	MinWidth             int      `json:"min_width"`
+	MinHeight            int      `json:"min_height"`
+	MaxDepth             int      `json:"max_depth"`
+	Ratio                string   `json:"ratio"`
+	RatioPresets         []string `json:"ratio_presets"`
+	RatioTolerancePixels *int     `json:"ratio_tolerance_pixels,omitempty"`
 }
 
 type Configuration struct {
@@ -167,7 +168,8 @@ func (s *Service) configuration(config Config, data []byte) Configuration {
 }
 
 func imageRules(config Config) ImageRules {
-	return ImageRules{MinWidth: config.Filters.MinWidth, MinHeight: config.Filters.MinHeight, MaxDepth: config.Filters.MaxDepth, Ratio: config.Filters.Ratio, RatioPresets: append([]string{}, config.Filters.RatioPresets...)}
+	tolerance := config.RatioTolerancePixels()
+	return ImageRules{MinWidth: config.Filters.MinWidth, MinHeight: config.Filters.MinHeight, MaxDepth: config.Filters.MaxDepth, Ratio: config.Filters.Ratio, RatioPresets: append([]string{}, config.Filters.RatioPresets...), RatioTolerancePixels: &tolerance}
 }
 
 // AddFolder enrolls a local input through the shared configuration writer.

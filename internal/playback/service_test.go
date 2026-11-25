@@ -366,7 +366,7 @@ func TestServiceNavigatesMultipleFoldersAndPreservesRemovedInputHistory(t *testi
 func TestExtremeRatioCannotReachWallpaperBackend(t *testing.T) {
 	backend := &fakeWallpaperBackend{}
 	service, root := testService(t, backend)
-	body := localTOML(root) + fmt.Sprintf("[filters]\nmin_width=2\nmin_height=2\nratio='%d:1'\n", int(^uint(0)>>1))
+	body := localTOML(root) + fmt.Sprintf("[filters]\nmin_width=2\nmin_height=2\nratio='%d:1'\nratio_tolerance_pixels=1\n", int(^uint(0)>>1))
 	if err := os.WriteFile(service.request.ConfigPath, []byte(body), 0600); err != nil {
 		t.Fatal(err)
 	}

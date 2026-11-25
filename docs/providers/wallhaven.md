@@ -78,6 +78,8 @@ Playback uses the saved search's effective rules, including inherited rules.
 hint when the display geometry is unavailable. A changed ratio restarts
 pagination at page one. Playback screens known dimensions before selecting a
 candidate and checks the decoded original again against the size and shape.
+The configured pixel tolerance applies to these local checks. Wallhaven receives
+the selected ratios as search hints.
 **Similar to my screen** omits the upstream ratio hint so nearby shapes are
 retained. Minimum dimensions or exact resolution hints still apply, and the
 same bounded paging continues across display geometry changes. Playback

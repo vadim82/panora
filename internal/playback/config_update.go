@@ -9,23 +9,24 @@ import (
 // identities have dedicated operations; clients cannot replace raw TOML.
 // Pointers distinguish omitted fields from explicit false and zero values.
 type UpdateConfigurationRequest struct {
-	Revision       string    `json:"revision"`
-	Backend        *string   `json:"backend,omitempty"`
-	Fit            *string   `json:"fit,omitempty"`
-	Upscale        *bool     `json:"upscale,omitempty"`
-	Interval       *string   `json:"interval,omitempty"`
-	RotationMode   *string   `json:"rotation_mode,omitempty"`
-	CacheMaxImages *int      `json:"cache_max_images,omitempty"`
-	CacheMaxBytes  *int64    `json:"cache_max_bytes,omitempty"`
-	MinWidth       *int      `json:"min_width,omitempty"`
-	MinHeight      *int      `json:"min_height,omitempty"`
-	Ratio          *string   `json:"ratio,omitempty"`
-	RatioPresets   *[]string `json:"ratio_presets,omitempty"`
-	MaxDepth       *int      `json:"max_depth,omitempty"`
+	Revision             string    `json:"revision"`
+	Backend              *string   `json:"backend,omitempty"`
+	Fit                  *string   `json:"fit,omitempty"`
+	Upscale              *bool     `json:"upscale,omitempty"`
+	Interval             *string   `json:"interval,omitempty"`
+	RotationMode         *string   `json:"rotation_mode,omitempty"`
+	CacheMaxImages       *int      `json:"cache_max_images,omitempty"`
+	CacheMaxBytes        *int64    `json:"cache_max_bytes,omitempty"`
+	MinWidth             *int      `json:"min_width,omitempty"`
+	MinHeight            *int      `json:"min_height,omitempty"`
+	Ratio                *string   `json:"ratio,omitempty"`
+	RatioPresets         *[]string `json:"ratio_presets,omitempty"`
+	RatioTolerancePixels *int      `json:"ratio_tolerance_pixels,omitempty"`
+	MaxDepth             *int      `json:"max_depth,omitempty"`
 }
 
 func (s *Service) UpdateConfiguration(ctx context.Context, request UpdateConfigurationRequest) (Configuration, error) {
-	if request.Backend == nil && request.Fit == nil && request.Upscale == nil && request.Interval == nil && request.RotationMode == nil && request.CacheMaxImages == nil && request.CacheMaxBytes == nil && request.MinWidth == nil && request.MinHeight == nil && request.Ratio == nil && request.RatioPresets == nil && request.MaxDepth == nil {
+	if request.Backend == nil && request.Fit == nil && request.Upscale == nil && request.Interval == nil && request.RotationMode == nil && request.CacheMaxImages == nil && request.CacheMaxBytes == nil && request.MinWidth == nil && request.MinHeight == nil && request.Ratio == nil && request.RatioPresets == nil && request.RatioTolerancePixels == nil && request.MaxDepth == nil {
 		return Configuration{}, &Error{Code: "invalid_request", Message: "provide at least one setting to update"}
 	}
 	var desktopUpdate *runtimeDesktopSettings
@@ -42,6 +43,11 @@ func (s *Service) UpdateConfiguration(ctx context.Context, request UpdateConfigu
 		changed = setPreference(&config.Filters.Ratio, request.Ratio) || changed
 		if request.RatioPresets != nil && !slices.Equal(config.Filters.RatioPresets, *request.RatioPresets) {
 			config.Filters.RatioPresets = slices.Clone(*request.RatioPresets)
+			changed = true
+		}
+		if pixels := request.RatioTolerancePixels; pixels != nil && *pixels != config.RatioTolerancePixels() {
+			value := *pixels
+			config.Filters.RatioTolerancePixels = &value
 			changed = true
 		}
 		changed = setPreference(&config.Filters.MaxDepth, request.MaxDepth) || changed
