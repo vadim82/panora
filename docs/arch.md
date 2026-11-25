@@ -7,10 +7,14 @@ The optional bar integration uses `socat`.
 
 ## Install, upgrade and remove
 
-Build from a [recorded revision](#build-from-a-recorded-revision). Inspect
-the resulting package with `pacman -Qip` for dependencies and `pacman -Qlp`
-for files. Install the package path printed by `makepkg --packagelist` with
-`sudo pacman -U`.
+Use the [signed Panora package repository](https://vadim82.github.io/panora/)
+for `yay` and normal Omarchy upgrades. For direct downloads, follow the
+[checksum and installation steps](../README.md#download-from-github-releases).
+
+To build from source, use a [recorded revision](#build-from-a-recorded-revision).
+Inspect the resulting package with `pacman -Qip` for dependencies and
+`pacman -Qlp` for files. Install the package path printed by
+`makepkg --packagelist` with `sudo pacman -U`.
 
 Open **Panora** from the Omarchy application launcher. It connects to a
 compatible Panora service or starts the packaged systemd user service and
@@ -40,8 +44,9 @@ journalctl --user -u panora.service -b
 /usr/bin/panora doctor
 ```
 
-For a compatible upgrade, build the package from the newer revision and install
-it with `sudo pacman -U`. After a successful transaction, the hook restarts each
+Use **Update → Omarchy** for repository upgrades. For a direct download or
+local build, install the newer package with `sudo pacman -U`. After a
+successful transaction, the hook restarts each
 verified running stock service through its systemd user manager. The desktop
 window can stay closed. A stopped service stays stopped and **Start Panora at
 login** keeps its current setting. Saved sources,

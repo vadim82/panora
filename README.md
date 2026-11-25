@@ -1,5 +1,9 @@
 # Panora
 
+[![CI](https://github.com/vadim82/panora/actions/workflows/go.yml/badge.svg?branch=main)](https://github.com/vadim82/panora/actions/workflows/go.yml)
+[![Latest release](https://img.shields.io/github/v/release/vadim82/panora)](https://github.com/vadim82/panora/releases/latest)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 **A wallpaper rotation you can make your own on Omarchy and macOS.**
 
 Mix your own folders and saved Wallhaven searches in one rotation. Find new
@@ -11,7 +15,7 @@ wallpapers.
 
 [Watch the Omarchy demo](assets/screenshots/panora-demo.mp4) ·
 [Install on Omarchy](#install-on-omarchy) ·
-[Build on macOS](#build-on-macos-apple-silicon)
+[Install on macOS](#install-on-macos-apple-silicon)
 
 ## Make the rotation yours
 
@@ -28,6 +32,21 @@ wallpapers.
 
 ## Install on Omarchy
 
+### Install with yay
+
+[Add the signed Panora package repository](https://vadim82.github.io/panora/) once.
+Run **Update → Omarchy** to sync it, then find or install Panora.
+
+```sh
+yay -Ss panora
+yay -S panora
+```
+
+Future Panora versions arrive through **Update → Omarchy** as they are
+published to the package repository.
+
+### Download from GitHub Releases
+
 Download the Arch Linux x86-64 package and `SHA256SUMS` from
 [GitHub Releases](https://github.com/vadim82/panora/releases). Save both files
 in an empty directory, then verify and install the package from that directory.
@@ -37,12 +56,17 @@ sha256sum --check SHA256SUMS &&
   sudo pacman -U ./panora-*-x86_64.pkg.tar.zst
 ```
 
+For release notifications, select **Watch → Custom → Releases** on GitHub.
+To upgrade a direct download, verify and install the new package the same way.
+
+### Open Panora
+
 Open **Panora** from the Omarchy launcher. On first launch, it starts with
 the active theme. Online discovery is opt-in and uses safe-for-work Wallhaven
 results. On Omarchy 4.5, the package adds playback controls to the bar on
 first use.
 
-## Build on macOS (Apple silicon)
+## Install on macOS (Apple silicon)
 
 Panora has a native Mac window and menu bar controls. Start with a local
 folder or a saved Wallhaven search, and turn on **Start Panora at login**
@@ -50,10 +74,13 @@ in Settings if you want rotation to start automatically. The menu bar stays
 available when you quit the window, and your current wallpaper follows you
 as you visit ordinary Desktops in Spaces.
 
-Follow the [macOS build and install guide](docs/macos-development.md#build-and-install)
-to build `Panora.app` from source. Developer ID signing and notarization for a
-public macOS download are pending. See the [macOS user guide](docs/macos.md)
-for menu bar controls, setup, and removal.
+Download the ad-hoc signed preview from
+[GitHub Releases](https://github.com/vadim82/panora/releases/latest) for Apple
+silicon Macs running macOS 26.7.2 or later. The release notes explain the
+checksum and what to expect from Gatekeeper when opening the preview.
+
+You can also [build `Panora.app` from source](docs/macos-development.md#build-and-install).
+See the [macOS user guide](docs/macos.md) for menu bar controls, setup, and removal.
 
 ## Documentation and contributing
 
