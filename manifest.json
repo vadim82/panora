@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.vadim82.panora",
+  "name": "Panora",
+  "version": "0.1.0",
+  "author": "vadim82",
+  "license": "MIT",
+  "description": "Preview the current wallpaper and control Panora rotation from the Omarchy bar",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "integrations/omarchy/io.github.vadim82.panora/BarWidget.qml"},
+  "barWidget": {
+    "displayName": "Panora",
+    "description": "Wallpaper preview and playback controls for the running Panora service",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

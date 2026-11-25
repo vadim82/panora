@@ -6,6 +6,20 @@ Play/Pause and Next, and service or recovery feedback. The preview fits the
 complete image within the available space. The bar icon and popup use the shared
 `qs.Ui` and `qs.Commons` kit and update their colors when the active theme changes.
 
+## Install from the Marketplace
+
+The widget requires the Panora app and its background service. Install the
+[Panora package](../../README.md#install-on-omarchy) and open the app from the
+Omarchy launcher. On Omarchy 4.5 the service registers and enables the bundled
+widget on first use. If you previously disabled it, use **Setup → Plugins →
+Enable** to bring it back.
+
+The Marketplace listing uses manual setup. The root manifest describes the
+same widget the package installs, with the same ID. The package supplies the
+CLI and desktop executable paths. Use the package installation above to set up
+the widget, then follow [Remove](#remove) or the
+[app removal guide](../../docs/arch.md#install-upgrade-and-remove) when needed.
+
 ## Packaged widget
 
 On Omarchy 4.5, when the packaged background service starts, it registers
