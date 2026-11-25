@@ -1,8 +1,42 @@
 # Panora on macOS
 
-A public macOS binary is not yet available. Building from source is described in
-[macOS development](macos-development.md). Public distribution requires signing
-and notarization.
+## Install with Homebrew on Apple silicon
+
+Install Xcode Command Line Tools and [Homebrew](https://brew.sh/). The tap and
+trust commands are a one-time setup. Homebrew builds and signs Panora locally,
+including the desktop app and the `panora` CLI.
+
+```sh
+brew tap vadim82/panora https://github.com/vadim82/panora.git
+brew trust --formula vadim82/panora/panora
+brew install panora
+open "$(brew --prefix panora)/libexec/Panora.app"
+```
+
+If you used the previous private cask, first [prepare Panora for
+removal](#data-replacement-and-removal) and quit the app. Run
+`brew uninstall --cask panora` and `brew untap vadim82/panora`, then follow
+the new tap commands above.
+
+To check for upgrades, run `brew update` and `brew outdated panora`. Before
+running `brew upgrade panora` or `brew uninstall panora`, use **Prepare to move
+or remove app…** and quit Panora. After upgrading, reopen the app and re-enable
+**Start Panora at login** if you used it.
+
+## Download an Apple silicon build
+
+When a [GitHub release](https://github.com/vadim82/panora/releases) includes
+an Apple silicon ZIP, download it with `SHA256SUMS.macos-arm64`. Run this command
+beside both files before extracting the ZIP and moving `Panora.app` into
+`~/Applications` with Finder.
+
+```sh
+shasum -a 256 -c SHA256SUMS.macos-arm64
+```
+
+The build receipt lists the minimum macOS version. These ZIPs are ad-hoc signed
+and unnotarized. Gatekeeper may block the downloaded app. The
+[macOS development guide](macos-development.md) also covers local builds.
 
 ## Set up wallpapers
 

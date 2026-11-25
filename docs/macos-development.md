@@ -77,11 +77,25 @@ The archive is native to the build Mac's architecture, either `arm64` or
 `x86_64`. Check the receipt for the macOS minimum and record verified platforms
 in release notes. Attach only verified outputs for the approved release scope.
 
-These archives use ad-hoc signatures for local testing. Gatekeeper may block
-a downloaded copy. Direct distribution requires a Developer ID Application
-signature for the app and its bundled executables, Hardened Runtime and Apple
-notarization. Staple the ticket to the app and rebuild the ZIP before checking
-the distributable archive and its checksum. [Apple's notarization guide](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution/)
+These archives use ad-hoc signatures. Gatekeeper may block a downloaded copy.
+Avoid implying Apple notarized an ad-hoc archive in release notes. A notarized
+release requires a Developer ID Application signature, Hardened Runtime and an
+Apple notarization ticket. [Apple's notarization guide](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution/)
+
+## Update the Homebrew formula
+
+The public repository also serves as the Homebrew tap. The formula pins the
+release tag and its full source commit. After a stable GitHub release,
+the **Homebrew formula** workflow prepares a patch for the version bump. For
+releases published by another workflow, dispatch **Homebrew formula** manually
+and provide the published tag as `release_tag`.
+
+Apply the patch in a maintainer PR. The Homebrew workflow builds and tests the
+formula on an Apple silicon Mac, and separately uploads the verified ad-hoc ZIP,
+checksum list, and build receipt for the same tag. Attach those outputs to the
+matching GitHub release after reviewing the receipt. Once the formula PR is
+merged, the new version is available through `brew update` and
+`brew upgrade panora`.
 
 ## CLI-only development
 
