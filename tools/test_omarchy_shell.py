@@ -94,6 +94,14 @@ else:
             self.assertNotIn('FAIL!', output)
             self.assertNotIn('TypeError:', output)
 
+    def test_marketplace_manifest_points_to_the_packaged_widget(self):
+        packaged = json.loads((PLUGIN / 'manifest.json').read_text())
+        widget = PLUGIN / packaged['entryPoints']['barWidget']
+        packaged['entryPoints']['barWidget'] = widget.relative_to(ROOT).as_posix()
+        marketplace = json.loads((ROOT / 'manifest.json').read_text())
+        self.assertEqual(marketplace, packaged)
+        self.assertTrue(widget.is_file())
+
     def test_manifest_and_plain_text(self):
         manifest = json.loads((PLUGIN / 'manifest.json').read_text())
         self.assertEqual(manifest['id'], PLUGIN.name)
