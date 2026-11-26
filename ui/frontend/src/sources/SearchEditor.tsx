@@ -12,7 +12,7 @@ import { ProviderField, ProviderFields } from './ProviderFields';
 import { manifestDefaults } from './providerManifest';
 import type { EditorField } from './providerManifest';
 import { wallhavenField, wallhavenGroup, wallhavenManifest } from './wallhavenManifest';
-import type { FilterGroup, SearchFilterDraft } from './SearchFilters';
+import type { SearchFilterDraft } from './SearchFilters';
 
 type Draft = SearchFilterDraft & {
   name: string;
@@ -77,7 +77,7 @@ export function SearchEditor({ search, mutable, onDirty, onCancel, onSaved }: Pr
   const [notice, setNotice] = useState(''),
     [working, setWorking] = useState(false),
     [options, setOptions] = useState(false),
-    [panel, setPanel] = useState<FilterGroup | null>(null),
+    [rulesOpen, setRulesOpen] = useState(false),
     [renaming, setRenaming] = useState(false),
     [validation, setValidation] = useState(0);
   const lock = useRef(false);
@@ -116,7 +116,7 @@ export function SearchEditor({ search, mutable, onDirty, onCancel, onSaved }: Pr
     }
     const ruleError = sourceRuleError(draft, config.rules);
     if (ruleError) {
-      setPanel('rules');
+      setRulesOpen(true);
       setNotice(ruleError.message + ' Your draft is kept.');
       focus.current = 'search-filter-rule-mode';
       return;
@@ -168,6 +168,21 @@ export function SearchEditor({ search, mutable, onDirty, onCancel, onSaved }: Pr
   const firstSearch = config.searches.length === 0 && !id;
   const patchRules = (patch: Partial<SearchFilterDraft>) =>
     setEditor((current) => ({ ...current, draft: { ...current.draft, ...patch } }));
+  const canCount = !dirty && saved?.enabled && ui.connected && !ui.blocked;
+  const canPreview =
+    existing &&
+    search?.enabled &&
+    ![
+      'query',
+      'categories',
+      'tags',
+      'tag_match',
+      'colors',
+      'sorting',
+      'order',
+      'max_pages',
+      'top_range',
+    ].some((key) => draft[key as keyof Draft] !== baseline[key as keyof Draft]);
   return (
     <div className="settings-panel source-editor search-editor">
       <form id="search-form" aria-labelledby="search-editor-title" onSubmit={submit} noValidate>
@@ -211,51 +226,21 @@ export function SearchEditor({ search, mutable, onDirty, onCancel, onSaved }: Pr
               Including this search enables network requests to Wallhaven for safe-for-work results.
             </p>
           )}
+          <ProviderField
+            id="search-query"
+            field={wallhavenField('query')}
+            value={draft.query}
+            optionalLabel
+            onChange={(value) => edit('query', String(value))}
+          />
           <SearchFilters
             draft={draft}
             inherited={config.rules}
             savedRuleResolution={search?.rule_resolution}
             savedRatio={(search?.effective_rules ?? search?.image_rules ?? config.rules).ratio}
             onChange={patchRules}
-            group={panel}
-            onGroup={setPanel}
-            query={
-              <ProviderField
-                id="search-query"
-                field={wallhavenField('query')}
-                value={draft.query}
-                optionalLabel
-                onChange={(value) => edit('query', String(value))}
-              />
-            }
-            preview={
-              existing &&
-              search?.enabled &&
-              ![
-                'query',
-                'categories',
-                'tags',
-                'tag_match',
-                'colors',
-                'sorting',
-                'order',
-                'max_pages',
-                'top_range',
-              ].some((key) => draft[key as keyof Draft] !== baseline[key as keyof Draft]) ? (
-                <SourceRules
-                  compact
-                  prefix="search-filter"
-                  provider="wallhaven"
-                  inputID={id}
-                  revision={revision}
-                  draft={draft}
-                  inherited={config.rules}
-                  disabled={ui.busy || working || ui.blocked}
-                  enrolled
-                  onChange={patchRules}
-                />
-              ) : null
-            }
+            rulesOpen={rulesOpen}
+            onRulesOpen={setRulesOpen}
           />
           {!existing && (
             <label className="search-check">
@@ -275,12 +260,31 @@ export function SearchEditor({ search, mutable, onDirty, onCancel, onSaved }: Pr
             cancel.
           </p>
         )}
-        {!dirty && saved?.enabled && ui.connected && !ui.blocked && (
-          <SearchCandidateCount
-            key={`${ui.snapshot?.status?.instance_id}/${saved.id}/${revision}`}
-            id={saved.id}
-            revision={revision}
-          />
+        {(canCount || canPreview) && (
+          <section className="search-catalog-results" aria-labelledby="search-catalog-title">
+            <h4 id="search-catalog-title">Catalog results</h4>
+            {canCount && (
+              <SearchCandidateCount
+                key={`${ui.snapshot?.status?.instance_id}/${saved.id}/${revision}`}
+                id={saved.id}
+                revision={revision}
+              />
+            )}
+            {canPreview && (
+              <SourceRules
+                compact
+                prefix="search-filter"
+                provider="wallhaven"
+                inputID={id}
+                revision={revision}
+                draft={draft}
+                inherited={config.rules}
+                disabled={ui.busy || working || ui.blocked}
+                enrolled
+                onChange={patchRules}
+              />
+            )}
+          </section>
         )}
         <Notice id="search-notice" hidden={!notice}>
           {notice}
@@ -389,8 +393,8 @@ function SearchCandidateCount({ id, revision }: { id: string; revision: string }
     setMessage(
       counts
         ? counts.eligible == null
-          ? 'Could not resolve the screen shape to count eligible candidates.'
-          : `${counts.eligible} eligible candidates of ${counts.discovered} discovered`
+          ? `${counts.discovered} discovered in the catalog. Eligible count needs a resolved screen shape.`
+          : `${counts.eligible} eligible of ${counts.discovered} discovered in the catalog.`
         : result.error || 'The candidate count is unavailable.',
     );
     setPending(false);
@@ -399,7 +403,7 @@ function SearchCandidateCount({ id, revision }: { id: string; revision: string }
   return (
     <div className="search-candidate-count">
       <Button pending={pending} disabled={ui.busy} onClick={() => void count()}>
-        {pending ? 'Counting candidates…' : 'Count eligible candidates'}
+        {pending ? 'Counting candidates…' : 'Count saved candidates'}
       </Button>
       <span className="subtext" role="status">
         {message}

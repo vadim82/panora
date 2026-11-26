@@ -117,28 +117,34 @@ Type a **Folder path** or use **Browse…** to pick one. Expand **Folder options
 for local image filters and scan settings.
 
 In a Wallhaven search, leave **Search terms** blank to browse by filters alone.
-**Filters** contains tags, categories, resolution, aspect ratio, colors, and
-image rules. Enter a tag name in **Tags** and press Enter or click **Add tag**.
-[Wallhaven tag suggestions](providers/wallhaven-tags.md) come from a bundled
-top-100 snapshot. Choose **Browse Wallhaven tags** to look up other tags.
-**Any (OR)** matches at least one selected tag and is the default for new
-searches. **All (AND)** requires every selected tag and is retained for older
-saves. The summary shows **Tags · Any** or **Tags · All** separately from
-**Other filters**. Click a chip to edit its filter or click its × to remove it.
-With no categories selected, Panora searches all three safe-for-work categories.
-In **Image rules**, choose shared settings or set geometry for the source.
-Use **Similar to my screen** for ratios within 5% of the display's shape,
-**Same shape as my screen** to use the pixel tolerance from Settings, or choose
-preset and custom ratios. Under **Resolutions**, a search can match exact sizes or require
-a minimum. **My screen** copies the detected pixel dimensions of one connected
-display into that search. **Use theme palette** copies the current Omarchy
-swatches into the draft. You can toggle the swatches before saving. Wallhaven
-matches any selected color using its closest supported swatches.
+Open **Filters** for tags, categories, and colors. Choose **Any (OR)** to match
+at least one selected tag or **All (AND)** to require every selected tag.
+New searches default to Any. Older searches keep their saved behavior. Enter
+a tag name and press Enter or click **Add tag**. Choose a
+[bundled suggestion](providers/wallhaven-tags.md) or **Browse Wallhaven tags**
+to look up other tags. With no categories selected, Panora searches all
+three safe-for-work categories.
 
-In a saved Wallhaven search, choose **Count eligible candidates** to see how many
-discovered wallpapers are in the candidate pool after image rules and
-exclusions. This uses the images Panora has already discovered. Panora verifies
-originals when it selects them for playback.
+**Add color** opens the Wallhaven swatches, a custom color control, and
+**Use theme palette**. The palette action copies the current Omarchy swatches
+into the draft. You can select up to six colors and remove each one before
+saving. Wallhaven matches any selected color using its closest supported
+swatches.
+
+Open **Image rules** to see the effective shared rules from Settings or
+choose **Set for this source**. Under **Resolutions**, require one minimum
+size or choose several exact sizes. **My screen** copies the pixel dimensions
+of one detected display. Under **Aspect ratios**, select preset or custom
+ratios, or use **Same shape as my screen** with the pixel tolerance from
+Settings. **Similar to my screen** retains the legacy 5% rule.
+
+**Catalog results** offers two checks for a saved, enabled search.
+**Count saved candidates** shows the discovered catalog total and the
+eligible count under the saved rules and exclusions when display geometry
+can be resolved. **Preview draft image rules** checks the current geometry
+draft against known catalog images, including unknown or partial results.
+Save changes to search criteria before previewing the affected catalog.
+Panora validates originals when it selects them for playback.
 
 Open the **Omarchy theme** row to see the active theme, its palette, and the
 total and eligible still counts. Use **View all** to browse the larger

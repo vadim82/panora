@@ -57,9 +57,12 @@ async function edit(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
 }
 
 describe('source editors', () => {
-  it('counts only the eligible candidates for a saved Wallhaven search', async () => {
+  it('keeps saved counts and draft previews together with their own availability', async () => {
     const api = installBridge(),
       user = userEvent.setup();
+    api.CountSearchCandidates.mockResolvedValueOnce({
+      counts: { discovered: 221, eligible: null, search_url: '' },
+    });
     api.Configuration.mockResolvedValue({
       configuration: {
         ...structuredClone(configuration),
@@ -83,12 +86,78 @@ describe('source editors', () => {
     });
     await ready();
     await edit(user, /^Edit Wallhaven search Space/);
-    await user.click(screen.getByRole('button', { name: 'Count eligible candidates' }));
-    expect(await screen.findByText('7 eligible candidates of 221 discovered')).toBeVisible();
+    const catalog = within(screen.getByRole('region', { name: 'Catalog results' }));
+    await user.click(catalog.getByRole('button', { name: 'Count saved candidates' }));
+    expect(await catalog.findByText(/221 discovered.*resolved screen shape/)).toBeVisible();
+    await user.click(catalog.getByRole('button', { name: 'Count saved candidates' }));
+    expect(await catalog.findByText('7 eligible of 221 discovered in the catalog.')).toBeVisible();
     expect(api.CountSearchCandidates).toHaveBeenCalledWith('space', configuration.revision);
+    await user.click(screen.getByRole('button', { name: 'Image rules' }));
+    await user.selectOptions(screen.getByLabelText('Rules'), 'custom');
+    await user.click(screen.getByRole('button', { name: '2560 × 1440' }));
+    expect(
+      catalog.queryByRole('button', { name: 'Count saved candidates' }),
+    ).not.toBeInTheDocument();
+    await user.click(catalog.getByRole('button', { name: 'Preview draft image rules' }));
+    expect(await catalog.findByText(/1 matching images from 1 inspected/)).toBeVisible();
+    expect(api.RulePreview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input_id: 'space',
+        rules: expect.objectContaining({ min_width: 2560, min_height: 1440 }),
+      }),
+    );
     expect(api.UpdateSearch).not.toHaveBeenCalled();
     await user.type(screen.getByRole('textbox', { name: /Search terms/ }), 'stars');
-    expect(screen.queryByText('7 eligible candidates of 221 discovered')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Catalog results' })).not.toBeInTheDocument();
+  });
+
+  it('retains a color draft through the inline picker and enforces the six-color cap', async () => {
+    const api = installBridge();
+    const user = userEvent.setup();
+    api.ThemePalette.mockResolvedValue({
+      colors: [
+        '#A1A1A1',
+        '#a1a1a1',
+        '#424153',
+        '#eeeeee',
+        '#ff9900',
+        '#ffffff',
+        '#000000',
+        '#666666',
+      ],
+    });
+    await ready();
+    await add(user, 'Wallhaven search');
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    const addColor = screen.getByRole('button', { name: 'Add color' });
+    await user.click(addColor);
+    const swatches = () => within(screen.getByRole('group', { name: 'Wallhaven swatches' }));
+    expect(swatches().getAllByRole('button')).toHaveLength(9);
+    for (const swatch of swatches().getAllByRole('button').slice(0, 7)) await user.click(swatch);
+    expect(screen.getByText('6 of 6 selected')).toBeVisible();
+    expect(screen.getByText('Choose up to 6 colors.')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Add custom color' }));
+    expect(screen.getByText('6 of 6 selected')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Use theme palette' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Remove color #a1a1a1' })).toBeVisible(),
+    );
+    expect(screen.getByText('6 of 6 selected')).toBeVisible();
+    await user.keyboard('{Escape}');
+    expect(addColor).toHaveFocus();
+    expect(addColor).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Filters' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    await user.click(screen.getByRole('button', { name: 'Remove color #a1a1a1' }));
+    expect(screen.getByText('5 of 6 selected')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Enable Wallhaven and add source' }));
+    expect(api.AddSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        colors: ['#424153', '#eeeeee', '#ff9900', '#ffffff', '#000000'],
+      }),
+    );
   });
 
   it('shows source types from the header without opening an editor and returns focus on Escape', async () => {
@@ -216,14 +285,16 @@ describe('source editors', () => {
         kind === 'folder' ? /^Edit Folder Wallpapers/ : /^Edit Wallhaven search Mountains/,
       );
       if (kind === 'search') {
-        await user.click(screen.getByRole('button', { name: 'Filters' }));
-        await user.click(screen.getByRole('button', { name: 'Resolutions' }));
+        await user.click(screen.getByRole('button', { name: 'Image rules' }));
         await user.click(screen.getByText('Custom size'));
       }
-      const width = screen.getByLabelText(kind === 'folder' ? 'Minimum width (pixels)' : 'Width');
+      const width = screen.getByLabelText(
+        kind === 'folder' ? 'Minimum width (pixels)' : 'Width (px)',
+      );
       await user.clear(width);
       await user.type(width, '2560');
-      if (kind === 'search') await user.click(screen.getByRole('button', { name: 'Apply' }));
+      if (kind === 'search')
+        await user.click(screen.getByRole('button', { name: 'Apply minimum' }));
       config = {
         ...config,
         revision: 'external-inheritance',
@@ -246,9 +317,7 @@ describe('source editors', () => {
         expect(screen.getByLabelText('Filter settings')).toHaveValue('custom');
         expect(screen.getByLabelText('Minimum width (pixels)')).toHaveValue(2560);
       } else {
-        expect(
-          screen.getByRole('button', { name: 'Remove filter At least 2560 × 1080' }),
-        ).toBeVisible();
+        expect(screen.getByRole('button', { name: '2560 × 1080' })).toBeVisible();
       }
       await user.click(screen.getByRole('button', { name: kind === 'folder' ? 'Save' : 'Save' }));
       const mutation = kind === 'folder' ? client.UpdateFolder : client.UpdateSearch;
@@ -303,16 +372,14 @@ describe('source editors', () => {
     await add(user, 'Wallhaven search');
     await user.type(screen.getByLabelText('Search terms (optional)'), 'quiet mountains');
     expect(
-      screen.queryByRole('button', { name: 'Preview source matches' }),
+      screen.queryByRole('button', { name: 'Preview draft image rules' }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Filters' }));
-    await user.click(screen.getByRole('button', { name: 'Aspect ratios' }));
+    await user.click(screen.getByRole('button', { name: 'Image rules' }));
     await user.click(screen.getByRole('button', { name: '3:2' }));
     await user.click(screen.getByText('Custom ratio'));
     await user.type(screen.getByLabelText('Width'), '7');
     await user.type(screen.getByLabelText('Height'), '5');
-    await user.click(screen.getByRole('button', { name: 'Add' }));
-    await user.click(screen.getByRole('button', { name: 'Resolutions' }));
+    await user.click(screen.getByRole('button', { name: 'Add ratio' }));
     await user.selectOptions(screen.getByRole('combobox', { name: 'Resolution match' }), 'exact');
     await user.click(await screen.findByRole('button', { name: 'My screen · 3024 × 1964' }));
     await user.click(screen.getByRole('button', { name: '5120 × 1440' }));
@@ -349,8 +416,7 @@ describe('source editors', () => {
     });
     await ready();
     await edit(user, /^Edit Wallhaven/);
-    await user.click(screen.getByRole('button', { name: 'Filters' }));
-    await user.click(screen.getByRole('button', { name: 'Aspect ratios' }));
+    await user.click(screen.getByRole('button', { name: 'Image rules' }));
     const exact = screen.getByRole('button', { name: 'Same shape as my screen' });
     const similar = screen.getByRole('button', { name: 'Similar to my screen' });
     expect(exact).toHaveAttribute('aria-pressed', 'true');
@@ -367,13 +433,12 @@ describe('source editors', () => {
     );
     await waitFor(() => expect(screen.getByTestId('settings-revision')).toHaveTextContent('saved'));
     await edit(user, /^Edit Wallhaven/);
-    await user.click(screen.getByRole('button', { name: 'Filters' }));
-    await user.click(screen.getByRole('button', { name: 'Aspect ratios' }));
+    await user.click(screen.getByRole('button', { name: 'Image rules' }));
     expect(screen.getByRole('button', { name: 'Similar to my screen' })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
-    expect(screen.getByRole('button', { name: 'Edit filter At least 3024 × 1964' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'My screen · 3024 × 1964' })).toBeVisible();
     expect(client.Action).not.toHaveBeenCalled();
   });
 
@@ -422,8 +487,7 @@ describe('source editors', () => {
       await edit(user, /^Edit Wallhaven/);
     } else {
       await add(user, 'Wallhaven search');
-      await user.click(screen.getByRole('button', { name: 'Filters' }));
-      await user.click(screen.getByRole('button', { name: 'Aspect ratios' }));
+      await user.click(screen.getByRole('button', { name: 'Image rules' }));
       await user.click(screen.getByRole('button', { name: 'Similar to my screen' }));
     }
     expect(await screen.findByText(warning)).toBeVisible();
@@ -445,8 +509,7 @@ describe('source editors', () => {
     const user = userEvent.setup();
     await ready();
     await add(user, 'Wallhaven search');
-    await user.click(screen.getByRole('button', { name: 'Filters' }));
-    await user.click(screen.getByRole('button', { name: 'Resolutions' }));
+    await user.click(screen.getByRole('button', { name: 'Image rules' }));
     const preset = await screen.findByRole('button', { name: 'My screen · 1920 × 1080' });
     expect(screen.queryByRole('button', { name: '1920 × 1080' })).not.toBeInTheDocument();
     await user.click(preset);
@@ -837,9 +900,12 @@ describe('source editors', () => {
     await add(user, 'Wallhaven search');
     const filters = screen.getByRole('button', { name: 'Filters' });
     await user.click(filters);
-    const entry = screen.getByRole('combobox', { name: 'Tag name' });
+    const entry = screen.getByRole('combobox', { name: 'Tags' });
+    await user.tab();
+    expect(screen.getByRole('combobox', { name: 'Tag matching' })).toHaveFocus();
+    await user.tab();
     expect(entry).toHaveFocus();
-    const suggestions = screen.getByRole('listbox', { name: 'Tag name suggestions' });
+    const suggestions = screen.getByRole('listbox', { name: 'Tags suggestions' });
     const options = () =>
       within(suggestions)
         .getAllByRole('option')
@@ -847,7 +913,7 @@ describe('source editors', () => {
     const initial = options();
     expect(initial).toHaveLength(10);
     expect(initial[0]).toBe('women');
-    expect(screen.getByRole('button', { name: 'Any OR' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('combobox', { name: 'Tag matching' })).toHaveValue('any');
 
     await user.type(entry, 'WOMEN{Enter}');
     expect(options()).toEqual([...initial.slice(1), 'ass']);
@@ -867,10 +933,10 @@ describe('source editors', () => {
     );
     expect(client.SuggestProviderInput).not.toHaveBeenCalled();
     await edit(user, /^Edit Wallhaven search .*ranked tags/);
-    const tags = screen.getByRole('group', { name: 'Tags · Any' });
-    await user.click(within(tags).getByRole('button', { name: 'Remove filter WOMEN' }));
-    expect(screen.getByRole('button', { name: 'Filters' })).toHaveFocus();
-    expect(tags).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    await user.click(screen.getByRole('button', { name: 'Remove tag WOMEN' }));
+    expect(screen.getByRole('combobox', { name: 'Tags' })).toHaveFocus();
+    expect(screen.queryByRole('group', { name: 'Selected tags' })).not.toBeInTheDocument();
   });
 
   it('keeps legacy All, saves Any by revision and groups manual tags after reopening', async () => {
@@ -892,25 +958,16 @@ describe('source editors', () => {
     await ready();
     const row = screen.getByRole('button', { name: /^Edit Wallhaven search/ });
     await user.click(row);
-    const tags = screen.getByRole('group', { name: 'Tags · All' });
-    expect(within(tags).getByRole('button', { name: 'Remove filter coast' })).toBeVisible();
-    expect(
-      within(screen.getByRole('group', { name: 'Other filters' })).getByRole('button', {
-        name: 'Edit filter General',
-      }),
-    ).toBeVisible();
-    await user.click(within(tags).getByRole('button', { name: 'Edit filter mountains' }));
-    const match = screen.getByRole('group', { name: 'Match' });
-    expect(within(match).getByRole('button', { name: 'All AND' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    expect(screen.getByRole('button', { name: 'Remove tag coast' })).toBeVisible();
+    expect(screen.getByRole('checkbox', { name: 'General' })).toBeChecked();
+    const match = screen.getByRole('combobox', { name: 'Tag matching' });
+    expect(match).toHaveValue('all');
     expect(screen.getByRole('link', { name: 'Browse Wallhaven tags' })).toHaveAttribute(
       'href',
       'https://wallhaven.cc/tags',
     );
-    const manual = screen.getByRole('combobox', { name: 'Tag name' });
-    expect(manual).toHaveFocus();
+    const manual = screen.getByRole('combobox', { name: 'Tags' });
     await user.type(manual, 'mini');
     expect(screen.getByRole('option', { name: 'minimalism' })).toBeVisible();
     await user.keyboard('{ArrowDown}{Enter}');
@@ -921,9 +978,11 @@ describe('source editors', () => {
     await user.keyboard('{Enter}');
     await user.click(screen.getByRole('button', { name: 'Remove tag coast' }));
     expect(manual).toHaveFocus();
-    await user.click(within(match).getByRole('button', { name: 'Any OR' }));
+    await user.selectOptions(match, 'any');
     await user.keyboard('{Escape}');
-    expect(screen.getByRole('group', { name: 'Tags · Any' })).toHaveTextContent('night sky');
+    expect(screen.getByRole('button', { name: 'Filters' })).toHaveAccessibleDescription(
+      '2 tags · General',
+    );
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(client.UpdateSearch).toHaveBeenCalledWith({
       id: 'wallhaven-tags',
@@ -936,7 +995,8 @@ describe('source editors', () => {
     );
     if (row.getAttribute('aria-expanded') === 'true') await user.click(row);
     await user.click(row);
-    expect(screen.getByRole('group', { name: 'Tags · Any' })).toHaveTextContent('night sky');
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    expect(screen.getByRole('button', { name: 'Remove tag night sky' })).toBeVisible();
   });
 
   it('keeps SFW search options and an explicitly removed search draft until Save as new', async () => {

@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Button, TextInput } from '../components/ui';
 
 export type Suggestions = ((prefix: string) => Promise<string[]>) | readonly string[];
@@ -8,6 +9,7 @@ export function SuggestionInput({
   label,
   describedBy,
   addLabel,
+  leadingControl,
   placeholder,
   suggest,
   selected,
@@ -17,6 +19,7 @@ export function SuggestionInput({
   label: string;
   describedBy?: string;
   addLabel: string;
+  leadingControl?: ReactNode;
   placeholder?: string;
   suggest?: Suggestions;
   selected: string[];
@@ -92,6 +95,7 @@ export function SuggestionInput({
 
   return (
     <div className="search-tag-input">
+      {leadingControl}
       <div className="provider-suggest-input">
         <TextInput
           id={id}
