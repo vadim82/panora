@@ -219,6 +219,7 @@ export interface ProviderInputEdit {
   inherit_rules?: boolean;
 }
 export interface Configuration {
+  save_folder?: string;
   config_path?: string;
   cache_path?: string;
   omarchy_theme_available?: boolean;
@@ -399,7 +400,24 @@ export interface SearchEdit {
   top_range?: string;
   refresh_interval?: string;
 }
-export type PreferenceEdit = Partial<Preferences & ImageRules> & { revision: string };
+export type PreferenceEdit = Partial<Preferences & ImageRules> & {
+  revision: string;
+  save_folder?: string;
+};
+export interface SaveWallpaperEdit {
+  instance: string;
+  history: string;
+  image_id: number;
+  revision: string;
+  folder?: string;
+}
+export interface SavedWallpaperResult {
+  saved?: boolean;
+  already_saved?: boolean;
+  folder_name?: string;
+  error?: string;
+  code?: string;
+}
 export interface BuildIdentity {
   version?: string;
   arch_package?: string;
@@ -439,6 +457,9 @@ export interface Bridge {
   }): Promise<Result>;
   UpdateConfiguration(edit: PreferenceEdit): Promise<Result>;
   PickFolder(): Promise<FolderResult>;
+  PickSaveFolder(): Promise<FolderResult>;
+  SaveWallpaper(edit: SaveWallpaperEdit): Promise<SavedWallpaperResult>;
+  OpenSavedFolder(): Promise<OpenResult>;
   AddFolderSettings(edit: FolderEdit): Promise<Result>;
   UpdateFolder(edit: FolderEdit): Promise<Result>;
   RemoveFolder(edit: { revision: string; id: string }): Promise<Result>;

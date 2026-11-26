@@ -17,6 +17,8 @@ type Client struct {
 	ctx             context.Context
 	socket          string
 	picker          func(context.Context) (string, error)
+	savePicker      func(context.Context) (string, error)
+	savedFolder     string // guarded by action
 	opener          func(context.Context, string) error
 	configOpener    func(context.Context, string) error
 	action          sync.Mutex
@@ -93,11 +95,22 @@ func (c *Client) playbackAction(busyMessage string, action func(context.Context)
 }
 
 func (c *Client) PickFolder() (Folder, error) {
+	return c.pickFolder(c.picker)
+}
+
+func (c *Client) PickSaveFolder() (Folder, error) {
+	return c.pickFolder(c.savePicker)
+}
+
+func (c *Client) pickFolder(picker func(context.Context) (string, error)) (Folder, error) {
+	if picker == nil {
+		return Folder{}, fmt.Errorf("folder picker unavailable")
+	}
 	if !c.dialog.TryLock() {
 		return Folder{}, fmt.Errorf("a folder picker is already open")
 	}
 	defer c.dialog.Unlock()
-	path, err := c.picker(c.ctx)
+	path, err := picker(c.ctx)
 	if err != nil {
 		return Folder{}, fmt.Errorf("choose folder: %w", err)
 	}

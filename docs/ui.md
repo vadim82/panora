@@ -48,6 +48,11 @@ The title and navigation tabs stay visible as you scroll each section.
   the image. Restore exclusions individually in **History → Excluded**.
   If the wallpaper or service changes before Exclude is applied, review the
   current image before trying again.
+- **Save to folder** below the current wallpaper keeps a full-resolution copy.
+  The first save asks for a folder. Later saves reuse it, and **Settings → Save
+  folder** lets you change the destination. **Open folder** opens the location
+  used for the last save. To rotate saved wallpapers, add the folder from
+  **Sources → Add folder**.
 - **Sources** manages folders, saved SFW Wallhaven searches, the active
   Omarchy theme, and inputs for installed providers. Open **Add source** to
   choose a source. Select **Start wallpapers** when a saved source is ready and

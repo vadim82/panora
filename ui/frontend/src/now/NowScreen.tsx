@@ -9,6 +9,7 @@ import { useAcceptedPreview } from './useAcceptedPreview';
 import { reviewImageRules, sourceAttention } from '../sources/SourceHealth';
 import { imageLabel } from '../imageLabel';
 import { WallpaperStrip } from './WallpaperStrip';
+import { SaveWallpaper } from './SaveWallpaper';
 import { hasLiveAspectRule, ThumbnailCache } from './thumbnailCache';
 import type { NavigationRequest, Snapshot } from '../types';
 
@@ -599,6 +600,7 @@ export function NowScreen() {
       <section className="accepted" aria-labelledby="title">
         <h2 id="title">{title}</h2>
         <p id="source">{details}</p>
+        <SaveWallpaper disabled={playbackBlocked} />
         <Notice id="open-notice" hidden={!openNotice}>
           {openNotice}
         </Notice>

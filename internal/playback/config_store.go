@@ -56,6 +56,7 @@ type ImageRules struct {
 }
 
 type Configuration struct {
+	SaveFolder            string                  `json:"save_folder"`
 	OmarchyThemeAvailable bool                    `json:"omarchy_theme_available,omitempty"`
 	OmarchyTheme          *ConfiguredOmarchyTheme `json:"omarchy_theme,omitempty"`
 	Version               int                     `json:"version"`
@@ -162,7 +163,7 @@ func (s *Service) configuration(config Config, data []byte) Configuration {
 	}
 	configPath, _ := ConfigPath(s.request.ConfigPath)
 	cachePath, _ := filepath.Abs(s.request.CachePath)
-	return Configuration{OmarchyThemeAvailable: available, OmarchyTheme: configuredOmarchyTheme(config), Version: StatusVersion, Revision: configRevision(data), ConfigPath: configPath, CachePath: cachePath, TOML: string(data), Effective: effective, Saved: saved, RestartRequired: restartRequired(saved, effective), Folders: folders, Searches: configuredSearches(config),
+	return Configuration{SaveFolder: config.SaveFolder, OmarchyThemeAvailable: available, OmarchyTheme: configuredOmarchyTheme(config), Version: StatusVersion, Revision: configRevision(data), ConfigPath: configPath, CachePath: cachePath, TOML: string(data), Effective: effective, Saved: saved, RestartRequired: restartRequired(saved, effective), Folders: folders, Searches: configuredSearches(config),
 		Rules: imageRules(config), RuleResolution: staticRuleResolution(config.Filters.Ratio),
 		ProviderEditors: s.providerEditors(config), Inputs: s.configuredInputs(config)}
 }

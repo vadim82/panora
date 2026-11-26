@@ -23,6 +23,7 @@ export function installFixture(
   const firstRun = scenario === 'first-run';
   let sequence = 2;
   const config: Configuration = {
+    save_folder: '',
     revision: 'preview-1',
     config_path: '/home/demo/.config/panora/config.toml',
     cache_path: '/home/demo/.cache/panora/playback',
@@ -172,6 +173,7 @@ export function installFixture(
     ];
   }
   const exclusions: Exclusion[] = [];
+  const savedWallpapers = new Set<string>();
   let lastExcluded: number | null = null;
   if (firstRun || scenario === 'empty') {
     if (firstRun)
@@ -465,6 +467,7 @@ export function installFixture(
     UpdateConfiguration: async (edit) => {
       const conflict = checkRevision(edit.revision);
       if (conflict) return conflict;
+      if (edit.save_folder !== undefined) config.save_folder = edit.save_folder;
       for (const key of [
         'backend',
         'fit',
@@ -488,6 +491,28 @@ export function installFixture(
       return saved();
     },
     PickFolder: async () => ({ name: 'Pictures', path: '/Demo/Pictures' }),
+    PickSaveFolder: async () => ({ name: 'Favorites', path: '/Demo/Pictures/Favorites' }),
+    SaveWallpaper: async (edit) => {
+      const { current, instance_id } = state.status || {};
+      if (
+        instance_id !== edit.instance ||
+        current?.id !== edit.history ||
+        current.image_id !== edit.image_id
+      )
+        return {
+          code: 'current_changed',
+          error: 'The wallpaper changed. Review the current wallpaper and try again.',
+        };
+      const conflict = checkRevision(edit.revision);
+      if (conflict) return conflict;
+      const folder = edit.folder || config.save_folder;
+      if (!folder) return { code: 'save_folder', error: 'Choose a folder for saved wallpapers.' };
+      const key = JSON.stringify([folder, edit.image_id]);
+      const already_saved = savedWallpapers.has(key);
+      savedWallpapers.add(key);
+      return { saved: true, already_saved, folder_name: folder.split('/').pop() };
+    },
+    OpenSavedFolder: async () => ({ opened: true }),
     AddFolderSettings: async (edit) => updateFolder(edit, true),
     UpdateFolder: async (edit) => updateFolder(edit, false),
     RemoveFolder: async (edit) => {

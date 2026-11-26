@@ -151,6 +151,25 @@ a lower limit. Check `last_apply_error` if application is incomplete.
 budget. To retry either case, reload settings and explicitly PATCH the saved
 limits again. See [runtime cache budgets](configuration.md#runtime-cache-budgets).
 
+### Save the accepted wallpaper
+
+`POST /v1/wallpapers/save` takes one JSON object with `instance`, `history`,
+positive integer `image_id`, and the reviewed configuration `revision`. Provide
+`folder` to explicitly use a native picker destination, or omit it to use
+`save_folder` from that configuration revision. The operation copies matching,
+validated full-resolution cache bytes into a complete, non-overwriting file
+outside the managed cache. It requires a destination that supports atomic
+hard-link publication. It returns `version`, the actual absolute `path`, and
+`already_saved`. A repeated save finds the same verified content. No provider
+or desktop operation runs, and playback history, pause, and timing are preserved.
+
+The service checks the accepted wallpaper and instance while holding its action
+lock. `current_changed`, `instance_changed`, and `config_conflict` require
+review before retrying. `save_folder` means the destination needs attention, and
+`image_unavailable` means the accepted full-resolution bytes could not be verified.
+After a successful first save, the client can remember the chosen folder by
+patching `save_folder` through the usual revisioned configuration API.
+
 ### Configuration routes
 
 | Request | Result |

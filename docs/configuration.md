@@ -188,6 +188,14 @@ rules. Unchanged inputs keep their catalog and retry state. See
 user config directory below. JSON config is rejected without conversion. If a
 default `config.json` exists, remove it or explicitly select a TOML file.
 
+## Save folder
+
+The optional top-level `save_folder` is an absolute path. Panora remembers it
+after the first successful **Save to folder** from Now. Change it from
+**Settings → Save folder**. If the folder becomes unavailable, choose another.
+The setting controls where full-resolution copies are filed. Use Sources to
+include the folder in rotation independently.
+
 ## Local folder management
 
 | Folder field | Omitted value | Meaning |

@@ -74,6 +74,7 @@ const (
 )
 
 type Config struct {
+	SaveFolder   string              `toml:"save_folder,omitempty"`
 	OmarchyTheme *OmarchyThemeConfig `toml:"omarchy_theme,omitempty"`
 	Desktop      DesktopConfig       `toml:"desktop"`
 	Version      int                 `toml:"version"`
@@ -216,6 +217,9 @@ func ParseConfig(data []byte) (Config, *RatioRule, error) {
 	}
 	if config.Version != 1 {
 		return config, nil, fmt.Errorf("unsupported configuration version %d; expected 1", config.Version)
+	}
+	if config.SaveFolder != "" && !validFolderPath(config.SaveFolder) {
+		return config, nil, fmt.Errorf("save_folder must be an absolute folder path")
 	}
 	if err := desktop.ValidateBackendName(config.Desktop.Backend); err != nil {
 		return config, nil, fmt.Errorf("desktop.backend: %w", err)

@@ -38,6 +38,72 @@ async function ready() {
   await waitFor(() => expect(screen.getByRole('button', { name: 'Next wallpaper' })).toBeEnabled());
 }
 describe('Now', () => {
+  it('chooses a folder once, opens the saved folder and reports an already saved wallpaper', async () => {
+    const mock = installBridge();
+    const user = userEvent.setup();
+    const path = '/Pictures/Favorites';
+    mock.PickSaveFolder.mockResolvedValueOnce({ canceled: true }).mockResolvedValue({ path });
+    mock.UpdateConfiguration.mockResolvedValue({
+      configuration: { ...configuration, revision: 'changed', save_folder: path },
+    });
+    mock.SaveWallpaper.mockResolvedValueOnce({
+      saved: true,
+      folder_name: 'Favorites',
+    }).mockResolvedValueOnce({ saved: true, already_saved: true, folder_name: 'Favorites' });
+    mount();
+    const save = await screen.findByRole('button', { name: 'Save to folder' });
+    save.focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(save).toBeEnabled());
+    expect(mock.SaveWallpaper).not.toHaveBeenCalled();
+    expect(mock.UpdateConfiguration).not.toHaveBeenCalled();
+    await user.click(save);
+    expect(await screen.findByText('Saved to Favorites')).toBeVisible();
+    await waitFor(() =>
+      expect(mock.UpdateConfiguration).toHaveBeenCalledWith({
+        revision: configuration.revision,
+        save_folder: path,
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Open folder' }));
+    expect(mock.OpenSavedFolder).toHaveBeenCalledExactlyOnceWith();
+    await waitFor(() => expect(save).toBeEnabled());
+    await user.click(save);
+    expect(await screen.findByText('Already saved')).toBeVisible();
+    expect(mock.PickSaveFolder).toHaveBeenCalledTimes(2);
+    expect(mock.SaveWallpaper).toHaveBeenLastCalledWith(
+      expect.objectContaining({ revision: 'changed', folder: undefined }),
+    );
+  });
+
+  it('sends the reviewed wallpaper identity after a picker and avoids remembering a failed save', async () => {
+    const mock = installBridge();
+    const user = userEvent.setup();
+    const current = snapshot.status!.current!;
+    let release!: (folder: { path: string }) => void;
+    mock.PickSaveFolder.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    mock.SaveWallpaper.mockResolvedValueOnce({
+      error: 'The wallpaper changed. Review the current wallpaper and try again.',
+      code: 'current_changed',
+    });
+    mount();
+    await user.click(await screen.findByRole('button', { name: 'Save to folder' }));
+    const latest = structuredClone(snapshot);
+    latest.status!.current = { ...current, id: 'newly-accepted', image_id: 2 };
+    mock.Status.mockResolvedValue(latest);
+    await act(() => release({ path: '/Pictures/Favorites' }));
+    expect(await screen.findByText(/The wallpaper changed/)).toBeVisible();
+    expect(mock.SaveWallpaper).toHaveBeenCalledWith(
+      expect.objectContaining({ history: current.id, image_id: current.image_id }),
+    );
+    expect(mock.UpdateConfiguration).not.toHaveBeenCalled();
+  });
+
   it.each(['previous', 'next'] as const)(
     'recovers a persisted uncertain apply through explicit %s',
     async (action) => {

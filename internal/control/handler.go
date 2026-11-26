@@ -18,6 +18,10 @@ func Handler(service Service) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
+		if r.URL.Path == saveWallpaperEndpoint {
+			handleSaveWallpaper(ctx, w, r, service)
+			return
+		}
 		if r.URL.Path == currentExclusionEndpoint {
 			handleCurrentExclusion(ctx, w, r, service)
 			return
