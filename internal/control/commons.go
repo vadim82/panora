@@ -30,7 +30,7 @@ func handleCommonsSearch(ctx context.Context, w http.ResponseWriter, r *http.Req
 		writeServiceError(w, &Error{Code: "unsupported", Message: "this service does not support Commons search"})
 		return true
 	}
-	const limit = 2048
+	const limit = 8 << 10
 	raw, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
 	var query source.CommonsSearch
 	if err != nil || len(raw) > limit || r.URL.RawQuery != "" || decodeConfigurationEdit(raw, &query) != nil {

@@ -16,6 +16,9 @@ type suggestFixture struct {
 }
 
 func (s *suggestFixture) SuggestProviderInput(_ context.Context, id string, query source.SuggestParams) ([]string, error) {
+	if id == source.CommonsID && query == (source.SuggestParams{Field: "category", Prefix: "night", Limit: 10}) {
+		return []string{"Night photography"}, nil
+	}
 	if id != "fixture-images" || query != (source.SuggestParams{Field: "tags", Prefix: "fo", Limit: 10}) {
 		return nil, &Error{Code: "invalid_request", Message: "fixture received unexpected suggestion arguments"}
 	}
@@ -32,6 +35,14 @@ func TestProviderSuggestionsPrivateSocketRoundTrip(t *testing.T) {
 	got, err := SuggestProviderInput(t.Context(), path, query)
 	if err != nil || got.Version != APIVersion || !slices.Equal(got.Values, []string{"forest"}) {
 		t.Fatalf("suggestions=%+v err=%v", got, err)
+	}
+	query = ProviderSuggestRequest{
+		ProviderID:    source.CommonsID,
+		SuggestParams: source.SuggestParams{Field: "category", Prefix: "night", Limit: 10},
+	}
+	got, err = SuggestProviderInput(t.Context(), path, query)
+	if err != nil || got.Version != APIVersion || !slices.Equal(got.Values, []string{"Night photography"}) {
+		t.Fatalf("Commons suggestions=%+v err=%v", got, err)
 	}
 	query.Prefix = " "
 	if _, err := SuggestProviderInput(t.Context(), path, query); err == nil {

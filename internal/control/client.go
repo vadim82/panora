@@ -140,7 +140,7 @@ func requestBodyWithDial(ctx context.Context, path, method, endpoint string, bod
 	response, err := client.Do(req)
 	if err != nil {
 		var dialErr *net.OpError
-		if method != http.MethodGet && endpoint != "/v1/rules/preview" && endpoint != commonsSearchEndpoint && !(errors.As(err, &dialErr) && dialErr.Op == "dial") {
+		if method != http.MethodGet && endpoint != "/v1/rules/preview" && endpoint != commonsSearchEndpoint && endpoint != providerSuggestRoute && !(errors.As(err, &dialErr) && dialErr.Op == "dial") {
 			return fmt.Errorf("Panora request failed: %w; the action may have completed; %s", err, reconcile)
 		}
 		return fmt.Errorf("Panora service unavailable: %w; start panora serve", err)

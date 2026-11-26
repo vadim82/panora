@@ -36,18 +36,14 @@ func (p *Provider) Search(ctx context.Context, filter source.CommonsSearch) (sou
 	}
 	ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
 	defer cancel()
-	body, err := p.api(ctx, url.Values{
+	body, err := p.imageAPI(ctx, url.Values{
 		"generator": {"search"}, "gsrsearch": {searchTerms(filter)}, "gsrnamespace": {"6"},
 		"gsrlimit": {strconv.Itoa(searchPageSize)}, "gsroffset": {strconv.Itoa(filter.Offset)}, "iiurlwidth": {"250"},
 	})
 	if err != nil {
 		var failure *source.Error
 		if errors.As(err, &failure) {
-			if failure.RetryAfterSeconds != nil {
-				p.searchRetryUntil = time.Now().Add(time.Duration(*failure.RetryAfterSeconds) * time.Second)
-			} else if failure.Code == "rate_limited" {
-				p.searchRetryUntil = time.Now().Add(5 * time.Second)
-			}
+			p.searchRetryUntil = retryUntil(failure)
 		}
 		return page, err
 	}
@@ -85,8 +81,8 @@ func (p *Provider) Search(ctx context.Context, filter source.CommonsSearch) (sou
 
 func searchTerms(filter source.CommonsSearch) string {
 	terms := []string{strings.TrimSpace(filter.Query)}
-	if category := strings.TrimSpace(filter.Category); category != "" {
-		terms = append(terms, fmt.Sprintf("incategory:%q", category))
+	for _, category := range filter.CategoryNames() {
+		terms = append(terms, fmt.Sprintf("incategory:%q", strings.TrimSpace(category)))
 	}
 	if filter.Format != "" {
 		terms = append(terms, `filemime:"image/`+filter.Format+`"`)

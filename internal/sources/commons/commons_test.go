@@ -146,7 +146,7 @@ func TestBundledCollectionPinsAreUniqueAndWellFormed(t *testing.T) {
 }
 
 func TestSearchApprovesOnlyMatchingUnchangedFiles(t *testing.T) {
-	filter := source.CommonsSearch{Query: "night sky", Category: "Landscape photographs", Format: "jpeg",
+	filter := source.CommonsSearch{Query: "night sky", Categories: []string{"Landscape photographs", "Night photography"}, Format: "jpeg",
 		MinWidth: 6000, MinHeight: 6000, ExactWidth: 5120, ExactHeight: 2880, Offset: 8}
 	metadata := make(chan string, 1)
 	requested := make(chan string, 4)
@@ -154,7 +154,7 @@ func TestSearchApprovesOnlyMatchingUnchangedFiles(t *testing.T) {
 		q := r.URL.Query()
 		if q.Get("generator") != "" {
 			requested <- "search"
-			if q.Get("gsrsearch") != `night sky incategory:"Landscape photographs" filemime:"image/jpeg" filew:5120 fileh:2880` ||
+			if q.Get("gsrsearch") != `night sky incategory:"Landscape photographs" incategory:"Night photography" filemime:"image/jpeg" filew:5120 fileh:2880` ||
 				q.Get("gsrnamespace") != "6" || q.Get("gsrlimit") != "8" || q.Get("gsroffset") != "8" {
 				t.Errorf("incorrect search filters: %v", q)
 			}
@@ -258,5 +258,33 @@ func TestSearchHonorsRetryBeforeContactingCommonsAgain(t *testing.T) {
 	}
 	if len(requested) != 1 {
 		t.Fatalf("expected one upstream search, got %d", len(requested))
+	}
+}
+
+func TestCommonsCategorySuggestionsValidateAndBoundRequests(t *testing.T) {
+	requested := make(chan struct{}, 2)
+	p := providerFixture(t, func(w http.ResponseWriter, r *http.Request) {
+		requested <- struct{}{}
+		q := r.URL.Query()
+		if q.Get("action") != "query" || q.Get("list") != "allcategories" || q.Get("acprefix") != "Night ph" ||
+			q.Get("aclimit") != "5" || q.Get("acprop") != "hidden" || q.Get("acmin") != "1" || q.Get("prop") != "" {
+			t.Errorf("incorrect category query: %v", q)
+		}
+		fmt.Fprint(w, `{"query":{"allcategories":[{"category":"Night photography"},{"category":"Night photographs of New Zealand"},
+			{"category":"Night photography"},{"category":"Night photos rejected","hidden":true},{"category":"Category:Night photo"}]}}`)
+	})
+	params := source.SuggestParams{Field: "category", Prefix: "N", Limit: 5}
+	got, err := p.Suggest(t.Context(), params)
+	if err != nil || len(got) != 0 || len(requested) != 0 {
+		t.Fatalf("a one-character category prefix contacted Commons: %v, %v", got, err)
+	}
+	params.Prefix = " Night ph "
+	got, err = p.Suggest(t.Context(), params)
+	if err != nil || strings.Join(got, "|") != "Night photography|Night photographs of New Zealand" || len(requested) != 1 {
+		t.Fatalf("unexpected category suggestions: %v, %v", got, err)
+	}
+	params.Prefix = "Category:Night"
+	if got, err := p.Suggest(t.Context(), params); err == nil || len(got) != 0 || len(requested) != 1 {
+		t.Fatalf("prefixed category triggered lookup: %v, %v", got, err)
 	}
 }

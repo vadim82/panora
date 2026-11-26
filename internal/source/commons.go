@@ -7,30 +7,62 @@ import (
 )
 
 const (
-	CommonsFeatured  = "featured-landscapes"
-	CommonsLive      = "search"
-	CommonsMaxPicks  = 36
-	CommonsMaxOffset = 200
+	CommonsFeatured      = "featured-landscapes"
+	CommonsLive          = "search"
+	CommonsMaxPicks      = 36
+	CommonsMaxOffset     = 200
+	CommonsMaxCategories = 8
 )
 
 type CommonsSearch struct {
-	Query       string `json:"query,omitempty"`
-	Category    string `json:"category,omitempty"`
-	Format      string `json:"format,omitempty"`
-	MinWidth    int    `json:"min_width,omitempty"`
-	MinHeight   int    `json:"min_height,omitempty"`
-	ExactWidth  int    `json:"exact_width,omitempty"`
-	ExactHeight int    `json:"exact_height,omitempty"`
-	Offset      int    `json:"offset,omitempty"`
+	Query       string   `json:"query,omitempty"`
+	Category    string   `json:"category,omitempty"`
+	Categories  []string `json:"categories,omitempty"`
+	Format      string   `json:"format,omitempty"`
+	MinWidth    int      `json:"min_width,omitempty"`
+	MinHeight   int      `json:"min_height,omitempty"`
+	ExactWidth  int      `json:"exact_width,omitempty"`
+	ExactHeight int      `json:"exact_height,omitempty"`
+	Offset      int      `json:"offset,omitempty"`
+}
+
+func ValidCommonsCategory(name string) bool {
+	return validCommonsCategory(name, MaxSuggestionText)
+}
+
+func validCommonsCategory(name string, max int) bool {
+	trimmed := strings.TrimSpace(name)
+	return editorText(name, max, false) && !strings.ContainsAny(name, `"\|`) &&
+		!strings.HasPrefix(strings.ToLower(trimmed), "category:")
+}
+
+func (q CommonsSearch) CategoryNames() []string {
+	if legacy := strings.TrimSpace(q.Category); legacy != "" {
+		return []string{legacy}
+	}
+	return q.Categories
 }
 
 func (q CommonsSearch) Validate() error {
-	if strings.TrimSpace(q.Query) == "" && strings.TrimSpace(q.Category) == "" {
+	if strings.TrimSpace(q.Query) == "" && len(q.CategoryNames()) == 0 {
 		return Failure("invalid_config", "enter Commons search terms or a category")
 	}
-	if len(q.Query) > 256 || len(q.Category) > 256 ||
-		strings.ContainsAny(q.Query+q.Category, "\"\\|:") || strings.ContainsFunc(q.Query+q.Category, unicode.IsControl) {
-		return Failure("invalid_config", "enter plain search terms and a category name without a prefix or search syntax")
+	if len(q.Query) > 256 || strings.ContainsAny(q.Query, `"\|:`) || strings.ContainsFunc(q.Query, unicode.IsControl) {
+		return Failure("invalid_config", "enter plain Commons search terms")
+	}
+	if len(q.Categories) > CommonsMaxCategories || q.Category != "" && len(q.Categories) > 0 {
+		return Failure("invalid_config", "choose up to eight Commons categories")
+	}
+	if q.Category != "" && !validCommonsCategory(q.Category, 256) {
+		return Failure("invalid_config", "enter a Commons category name without a prefix")
+	}
+	seen := make(map[string]bool, len(q.Categories))
+	for _, name := range q.Categories {
+		folded := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(name), "_", " "))
+		if !ValidCommonsCategory(name) || seen[folded] {
+			return Failure("invalid_config", "enter distinct Commons category names without the Category prefix")
+		}
+		seen[folded] = true
 	}
 	if q.Format != "" && q.Format != "jpeg" && q.Format != "png" {
 		return Failure("invalid_config", "choose JPEG or PNG for the Commons file format")
@@ -98,7 +130,9 @@ func DecodeCommonsConfig(raw json.RawMessage) (CommonsConfig, error) {
 	if err := Decode(raw, &c); err != nil {
 		return c, Failure("invalid_config", "invalid Commons source settings")
 	}
-	if c.Collection == CommonsFeatured && c.CommonsSearch == (CommonsSearch{}) && len(c.Approved) == 0 {
+	if c.Collection == CommonsFeatured && len(c.Approved) == 0 &&
+		c.Query == "" && c.Category == "" && len(c.Categories) == 0 && c.Format == "" && c.Offset == 0 &&
+		c.MinWidth == 0 && c.MinHeight == 0 && c.ExactWidth == 0 && c.ExactHeight == 0 {
 		return c, nil
 	}
 	if c.Collection != CommonsLive || c.Offset != 0 || len(c.Approved) < 1 || len(c.Approved) > CommonsMaxPicks {

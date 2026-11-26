@@ -67,7 +67,7 @@ func handleProviderEditor(ctx context.Context, w http.ResponseWriter, r *http.Re
 	}
 	if suggest {
 		var query ProviderSuggestRequest
-		if decodeConfigurationEdit(body, &query) != nil || !source.ValidExternalID(query.ProviderID) || !query.SuggestParams.Valid() {
+		if decodeConfigurationEdit(body, &query) != nil || !source.SupportsProviderInputs(query.ProviderID) || !query.SuggestParams.Valid() {
 			writeAPIError(w, http.StatusBadRequest, "invalid_request", "provide a provider ID, field, prefix and limit")
 			return true
 		}

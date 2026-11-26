@@ -43,12 +43,14 @@ type reviewedFile struct {
 func (file reviewedFile) id() string { return strconv.Itoa(file.PageID) + "-" + file.SHA1 }
 
 type Provider struct {
-	endpoint         string
-	client           *http.Client
-	files            []reviewedFile
-	collection       string
-	searchSlot       chan struct{}
-	searchRetryUntil time.Time // guarded by searchSlot
+	endpoint          string
+	client            *http.Client
+	files             []reviewedFile
+	collection        string
+	searchSlot        chan struct{}
+	searchRetryUntil  time.Time // guarded by searchSlot
+	suggestSlot       chan struct{}
+	suggestRetryUntil time.Time // guarded by suggestSlot
 }
 
 func New() *Provider {
@@ -66,7 +68,7 @@ func newProvider(endpoint string, reviewed []byte) *Provider {
 		client: &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}},
-		files: files, collection: hex.EncodeToString(hash[:]), searchSlot: make(chan struct{}, 1),
+		files: files, collection: hex.EncodeToString(hash[:]), searchSlot: make(chan struct{}, 1), suggestSlot: make(chan struct{}, 1),
 	}
 }
 
@@ -74,7 +76,7 @@ func (*Provider) Describe(context.Context) (source.Description, error) {
 	return source.Description{
 		Protocol: source.Protocol, ID: source.CommonsID, Name: Name,
 		MediaKinds: []string{"image"}, ContentKinds: []string{"https"},
-		Operations: []string{"describe", "validate", "discover", "resolve"},
+		Operations: []string{"describe", "validate", "discover", "resolve", source.SuggestMethod},
 		Fields:     []source.Field{{Key: "collection", Type: "text", Label: "Collection"}},
 	}, nil
 }
@@ -87,6 +89,8 @@ func Editor() source.EditorManifest {
 			Help:    "Panora contacts Wikimedia Commons to find and download wallpapers. Search results enter rotation after approval.",
 			Default: json.RawMessage(`"search"`),
 			Options: []source.EditorOption{{Label: "Search Commons", Value: source.CommonsLive}, {Label: Collection, Value: source.CommonsFeatured}},
+		}, {
+			Key: "category", Label: "Commons categories", Control: "multivalue", Suggest: source.SuggestMethod,
 		}}}},
 	}
 }
@@ -302,7 +306,7 @@ func (p *Provider) fetch(ctx context.Context, files []reviewedFile) (map[int]fil
 		ids[i] = strconv.Itoa(file.PageID)
 		wanted[file.PageID] = true
 	}
-	body, err := p.api(ctx, url.Values{"pageids": {strings.Join(ids, "|")}})
+	body, err := p.imageAPI(ctx, url.Values{"pageids": {strings.Join(ids, "|")}})
 	if err != nil {
 		return nil, err
 	}
@@ -322,21 +326,31 @@ func (p *Provider) fetch(ctx context.Context, files []reviewedFile) (map[int]fil
 }
 
 type apiResponse struct {
-	Error    *struct{ Code string }      `json:"error"`
-	Query    *struct{ Pages []filePage } `json:"query"`
-	Warning  json.RawMessage             `json:"warnings"`
+	Error *struct{ Code string } `json:"error"`
+	Query *struct {
+		Pages      []filePage
+		Categories []struct {
+			Name   string `json:"category"`
+			Hidden bool   `json:"hidden"`
+		} `json:"allcategories"`
+	} `json:"query"`
+	Warning  json.RawMessage `json:"warnings"`
 	Continue struct {
 		SearchOffset int `json:"gsroffset"`
 	} `json:"continue"`
 }
 
-func (p *Provider) api(ctx context.Context, query url.Values) (apiResponse, error) {
-	var body apiResponse
-	query.Set("action", "query")
+func (p *Provider) imageAPI(ctx context.Context, query url.Values) (apiResponse, error) {
 	query.Set("prop", "imageinfo|info")
 	query.Set("iiprop", "url|size|mime|sha1|extmetadata")
 	query.Set("iiextmetadatafilter", strings.Join(termsFields, "|")+"|License")
 	query.Set("iiextmetadatalanguage", "en")
+	return p.api(ctx, query)
+}
+
+func (p *Provider) api(ctx context.Context, query url.Values) (apiResponse, error) {
+	var body apiResponse
+	query.Set("action", "query")
 	query.Set("format", "json")
 	query.Set("formatversion", "2")
 	query.Set("maxlag", "5")

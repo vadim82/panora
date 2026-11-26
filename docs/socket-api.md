@@ -407,13 +407,18 @@ source editors. Removal keeps originals and history.
 `POST /v1/providers/suggest` accepts `provider_id`, `field`, `prefix` and
 `limit` in a JSON object of at most 1 KiB. It uses the declared operation and
 returns `{"version":1,"values":[...]}` when available. It reads suggestions only, with a
-two-second deadline, and never applies the source draft. See the
+two-second deadline, and never applies the source draft. Commons category
+suggestions use `provider_id: "wikimedia_commons"`, `field: "category"` and at
+least two characters of the name. See the
 [versioned editor contract](providers/editor-manifest.md).
 
 ### Wikimedia Commons search route
 
-`POST /v1/providers/commons/search` accepts a JSON object of at most 2 KiB.
-Supply `query`, `category` or both. Set `format` to `jpeg` or `png` to
+`POST /v1/providers/commons/search` accepts a JSON object of at most 8 KiB.
+Supply `query`, `categories` or both. Categories are an array of up to eight
+names without the `Category:` prefix. A result must belong to each category.
+Existing settings may use the single `category` string in place of
+`categories`. Set `format` to `jpeg` or `png` to
 restrict the default supported formats. `min_width` and `min_height` apply
 minimums. An `exact_width` and `exact_height` pair takes precedence. The
 optional `offset` starts at zero and cannot exceed 200.

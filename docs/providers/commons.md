@@ -7,9 +7,10 @@ search or enable a saved source.
 
 ## Search Commons
 
-Enter keywords. Under **More options**, you can search by a Commons category
-name without the `Category:` prefix, on its own or with the keywords.
-Search returns JPEG and PNG files. Minimum width and height narrow the results.
+Enter keywords. Under **More options**, type at least two characters to look
+up Commons category names. Choose up to eight categories. You can search
+without keywords by selecting categories alone. Results must belong to
+every selected category. Search returns JPEG and PNG files. Minimum width and height narrow the results.
 An exact width and height pair takes precedence over the minimums.
 
 Each result shows its dimensions, creator credit, license and file page.
