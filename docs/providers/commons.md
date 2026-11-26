@@ -1,15 +1,16 @@
 # Wikimedia Commons
 
-Open **Sources → Add source → Wikimedia Commons** and choose **Search Commons**
-or **Featured landscapes**. Commons needs no account or API key. Opening the
-editor makes no request. Panora contacts Commons when you run a search or enable
-a saved source.
+Open **Sources → Add source → Wikimedia Commons**. Use **Search Commons** to
+find images and **More options** for the **Featured landscapes** collection.
+Commons needs no account or API key. Panora contacts Commons when you run a
+search or enable a saved source.
 
 ## Search Commons
 
-Enter keywords, a Commons category name without the `Category:` prefix, or
-both. Choose JPEG, PNG or either format. Minimum width and height narrow the
-results. An exact width and height pair takes precedence over the minimums.
+Enter keywords. Under **More options**, you can search by a Commons category
+name without the `Category:` prefix, on its own or with the keywords.
+Search returns JPEG and PNG files. Minimum width and height narrow the results.
+An exact width and height pair takes precedence over the minimums.
 
 Each result shows its dimensions, creator credit, license and file page.
 Thumbnail previews appear when Commons supplies them. Review the file and its

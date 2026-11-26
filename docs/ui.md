@@ -53,10 +53,10 @@ The title and navigation tabs stay visible as you scroll each section.
   installed providers. Open **Add source** to
   choose a source. Select **Start wallpapers** when a saved source is ready and
   no wallpaper has been displayed.
-- In **Wikimedia Commons**, search by keywords or category, narrow by format
-  and dimensions, and review the credit and license on each preview. Approve
-  the files you want before saving the source. **Featured landscapes** offers a
-  ready-to-use collection.
+- In **Wikimedia Commons**, search by keywords, narrow by dimensions, and
+  review the credit and license on each preview. Approve the files you want
+  before saving the source. **More options** contains category search and
+  the ready-to-use **Featured landscapes** collection.
 - **History** lists accepted images and supports replay. **Excluded** lists
   marked images, including those outside the retained history window. Restore
   clears its exclusion mark. If the preview is busy, reload History. A preview
