@@ -14,10 +14,11 @@ Omarchy launcher. On Omarchy 4.5 the service registers and enables the bundled
 widget on first use. If you previously disabled it, use **Setup → Plugins →
 Enable** to bring it back.
 
-The Marketplace listing uses manual setup. The root manifest describes the
-same widget the package installs, with the same ID. The package supplies the
-CLI and desktop executable paths. Use the package installation above to set up
-the widget, then follow [Remove](#remove) or the
+The [Panora Marketplace listing](https://plugins.omarchy.org/plugin.html?id=io.github.vadim82.panora)
+uses manual setup. The root manifest describes the same widget the package
+installs, with the same ID. The package supplies the CLI and desktop executable
+paths. Use the package installation above to set up the widget, then follow
+[Remove](#remove) or the
 [app removal guide](../../docs/arch.md#install-upgrade-and-remove) when needed.
 
 ## Packaged widget
