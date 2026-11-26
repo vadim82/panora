@@ -160,7 +160,12 @@ export function installFixture(
         enabled: true,
         state: 'ready',
         inputs: [
-          { id: 'demo-search', state: 'ready' },
+          {
+            id: 'demo-search',
+            state: 'ready',
+            counts: { scope: 'metadata', inspected: 48, known_eligible: null, pages: 2 },
+            last_success: '2026-11-01T12:30:00Z',
+          },
           { id: 'night-search', state: 'disabled' },
         ],
       },

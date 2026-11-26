@@ -1,12 +1,13 @@
 import { Button, Field, FormActions, Notice, TextInput } from '../components/ui';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { usePanora } from '../client';
 import type { ConfiguredSearch, SearchEdit, ImageRules } from '../types';
 import type { EditorCallbacks } from './editorCallbacks';
 import { useSourceDraft } from './useSourceDraft';
 import { useSourceEditorFocus } from './useSourceEditorFocus';
-import { SourceRules, sourceRuleDraft, sourceRuleError, sourceRulePatch } from './SourceRules';
+import { sourceRuleDraft, sourceRuleError, sourceRulePatch } from './SourceRules';
+import type { SearchDraftStatus } from './WallhavenCatalog';
 import { SearchFilters } from './SearchFilters';
 import { ProviderField, ProviderFields } from './ProviderFields';
 import { manifestDefaults } from './providerManifest';
@@ -56,9 +57,32 @@ const values = (search: ConfiguredSearch, inherited: ImageRules): Draft => ({
   refresh_interval: search.refresh_interval,
 });
 
-type Props = EditorCallbacks & { search?: ConfiguredSearch; mutable: boolean };
+const searchCriteria = [
+  'query',
+  'categories',
+  'tags',
+  'tag_match',
+  'colors',
+  'sorting',
+  'order',
+  'max_pages',
+  'top_range',
+] as const;
 
-export function SearchEditor({ search, mutable, onDirty, onCancel, onSaved }: Props) {
+type Props = EditorCallbacks & {
+  search?: ConfiguredSearch;
+  mutable: boolean;
+  onDraftStatus(draft: SearchDraftStatus | null): void;
+};
+
+export function SearchEditor({
+  search,
+  mutable,
+  onDirty,
+  onCancel,
+  onSaved,
+  onDraftStatus,
+}: Props) {
   const ui = usePanora();
   const config = ui.configuration!;
   const id = search?.id || undefined;
@@ -168,21 +192,23 @@ export function SearchEditor({ search, mutable, onDirty, onCancel, onSaved }: Pr
   const firstSearch = config.searches.length === 0 && !id;
   const patchRules = (patch: Partial<SearchFilterDraft>) =>
     setEditor((current) => ({ ...current, draft: { ...current.draft, ...patch } }));
-  const canCount = !dirty && saved?.enabled && ui.connected && !ui.blocked;
-  const canPreview =
-    existing &&
-    search?.enabled &&
-    ![
-      'query',
-      'categories',
-      'tags',
-      'tag_match',
-      'colors',
-      'sorting',
-      'order',
-      'max_pages',
-      'top_range',
-    ].some((key) => draft[key as keyof Draft] !== baseline[key as keyof Draft]);
+  const draftStatus = useMemo((): SearchDraftStatus | null => {
+    const source = { id, revision };
+    if (!existing || !saved) return { ...source, reason: 'unenrolled' };
+    if (!saved.enabled || !draft.enabled) return { ...source, reason: 'disabled' };
+    if (searchCriteria.some((key) => draft[key] !== baseline[key]))
+      return { ...source, reason: 'criteria_changed' };
+    const rules = sourceRulePatch(draft, baseline, true);
+    if (!rules.image_rules && !rules.inherit_rules) return null;
+    if (sourceRuleError(draft, config.rules)) return { ...source, reason: 'invalid_rules' };
+    return {
+      id,
+      revision,
+      rules: { ...(rules.image_rules ?? config.rules), max_depth: config.rules.max_depth },
+    };
+  }, [baseline, config.rules, draft, existing, id, revision, saved]);
+  useLayoutEffect(() => onDraftStatus(draftStatus), [draftStatus, onDraftStatus]);
+  useLayoutEffect(() => () => onDraftStatus(null), [onDraftStatus]);
   return (
     <div className="settings-panel source-editor search-editor">
       <form id="search-form" aria-labelledby="search-editor-title" onSubmit={submit} noValidate>
@@ -259,32 +285,6 @@ export function SearchEditor({ search, mutable, onDirty, onCancel, onSaved }: Pr
             This search was removed elsewhere. Your draft is kept; save it as a new search or
             cancel.
           </p>
-        )}
-        {(canCount || canPreview) && (
-          <section className="search-catalog-results" aria-labelledby="search-catalog-title">
-            <h4 id="search-catalog-title">Catalog results</h4>
-            {canCount && (
-              <SearchCandidateCount
-                key={`${ui.snapshot?.status?.instance_id}/${saved.id}/${revision}`}
-                id={saved.id}
-                revision={revision}
-              />
-            )}
-            {canPreview && (
-              <SourceRules
-                compact
-                prefix="search-filter"
-                provider="wallhaven"
-                inputID={id}
-                revision={revision}
-                draft={draft}
-                inherited={config.rules}
-                disabled={ui.busy || working || ui.blocked}
-                enrolled
-                onChange={patchRules}
-              />
-            )}
-          </section>
         )}
         <Notice id="search-notice" hidden={!notice}>
           {notice}
@@ -376,38 +376,6 @@ export function SearchEditor({ search, mutable, onDirty, onCancel, onSaved }: Pr
           />
         </fieldset>
       </form>
-    </div>
-  );
-}
-
-function SearchCandidateCount({ id, revision }: { id: string; revision: string }) {
-  const ui = usePanora();
-  const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState('');
-
-  async function count() {
-    setPending(true);
-    setMessage('');
-    const result = await ui.request('CountSearchCandidates', [id, revision]);
-    const counts = result.counts;
-    setMessage(
-      counts
-        ? counts.eligible == null
-          ? `${counts.discovered} discovered in the catalog. Eligible count needs a resolved screen shape.`
-          : `${counts.eligible} eligible of ${counts.discovered} discovered in the catalog.`
-        : result.error || 'The candidate count is unavailable.',
-    );
-    setPending(false);
-  }
-
-  return (
-    <div className="search-candidate-count">
-      <Button pending={pending} disabled={ui.busy} onClick={() => void count()}>
-        {pending ? 'Counting candidates…' : 'Count saved candidates'}
-      </Button>
-      <span className="subtext" role="status">
-        {message}
-      </span>
     </div>
   );
 }

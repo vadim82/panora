@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { ClientProvider, usePanora } from '../client';
 import { ImageSettingsProvider } from '../settings/ImageSettings';
-import { capabilities, configuration, installBridge } from '../test/fixtures';
+import { capabilities, configuration, installBridge, snapshot } from '../test/fixtures';
 import type { Configuration, ConfiguredFolder, ConfiguredSearch } from '../types';
 import { SourcesScreen } from './SourcesScreen';
 
@@ -57,58 +57,201 @@ async function edit(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
 }
 
 describe('source editors', () => {
-  it('keeps saved counts and draft previews together with their own availability', async () => {
-    const api = installBridge(),
-      user = userEvent.setup();
-    api.CountSearchCandidates.mockResolvedValueOnce({
-      counts: { discovered: 221, eligible: null, search_url: '' },
-    });
+  it('shows saved counts and debounced draft matches together in Source status', async () => {
+    const api = installBridge();
+    const user = userEvent.setup();
     api.Configuration.mockResolvedValue({
       configuration: {
         ...structuredClone(configuration),
-        searches: [
-          {
-            id: 'space',
-            name: 'Space',
-            query: '',
-            enabled: true,
-            input_enabled: true,
-            categories: '100',
-            purity: '100',
-            sorting: 'relevance',
-            order: 'desc',
-            max_pages: 20,
-            top_range: '1M',
-            refresh_interval: '5m',
-          },
-        ],
+        searches: [{ ...savedSearch('space', ''), name: 'Space' }],
+      },
+    });
+    const statusSnapshot = structuredClone(snapshot);
+    const inputHealth = {
+      id: 'space',
+      state: 'ready',
+      counts: { scope: 'latest-check', inspected: 8, known_eligible: null },
+      last_success: '2026-11-01T12:00:00Z',
+    };
+    statusSnapshot.status!.providers = [
+      { id: 'wallhaven', enabled: true, state: 'ready', inputs: [inputHealth] },
+    ];
+    api.Status.mockImplementation(async () => structuredClone(statusSnapshot));
+    api.CountSearchCandidates.mockResolvedValueOnce({
+      counts: { discovered: 221, eligible: null, search_url: '' },
+    });
+    api.RulePreview.mockResolvedValueOnce({
+      preview: {
+        matched: 1,
+        rejected: 2,
+        unknown: 3,
+        inspected: 6,
+        complete: false,
+        limit: 200,
+        exclusions_applied: false,
+        reasons: {},
       },
     });
     await ready();
+    expect(api.CountSearchCandidates).not.toHaveBeenCalled();
+    const status = within(document.getElementById('source-troubleshooting')!);
+    await user.click(status.getByText('Source troubleshooting'));
+    expect(
+      await status.findByText(/221 discovered.*Eligible count unavailable.*screen shape/),
+    ).toBeVisible();
+    expect(status.getByText(/8 inspected in the latest check/)).toBeVisible();
+    expect(api.CountSearchCandidates).toHaveBeenCalledExactlyOnceWith(
+      'space',
+      configuration.revision,
+    );
+    await user.click(status.getByRole('button', { name: 'Refresh status' }));
+    const savedCount = /221 discovered in the catalog.*7 eligible under saved rules and exclusions/;
+    expect(await status.findByText(savedCount)).toBeVisible();
+
     await edit(user, /^Edit Wallhaven search Space/);
-    const catalog = within(screen.getByRole('region', { name: 'Catalog results' }));
-    await user.click(catalog.getByRole('button', { name: 'Count saved candidates' }));
-    expect(await catalog.findByText(/221 discovered.*resolved screen shape/)).toBeVisible();
-    await user.click(catalog.getByRole('button', { name: 'Count saved candidates' }));
-    expect(await catalog.findByText('7 eligible of 221 discovered in the catalog.')).toBeVisible();
-    expect(api.CountSearchCandidates).toHaveBeenCalledWith('space', configuration.revision);
+    expect(screen.queryByRole('region', { name: 'Catalog results' })).not.toBeInTheDocument();
+    expect(api.RulePreview).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Image rules' }));
     await user.selectOptions(screen.getByLabelText('Rules'), 'custom');
     await user.click(screen.getByRole('button', { name: '2560 × 1440' }));
+    expect(api.RulePreview).not.toHaveBeenCalled();
     expect(
-      catalog.queryByRole('button', { name: 'Count saved candidates' }),
-    ).not.toBeInTheDocument();
-    await user.click(catalog.getByRole('button', { name: 'Preview draft image rules' }));
-    expect(await catalog.findByText(/1 matching images from 1 inspected/)).toBeVisible();
-    expect(api.RulePreview).toHaveBeenCalledWith(
+      await status.findByText(/1 matching.*2 rejected.*3 unknown.*Partial catalog check/),
+    ).toBeVisible();
+    expect(status.getByText(savedCount)).toBeVisible();
+    expect(api.RulePreview).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         input_id: 'space',
         rules: expect.objectContaining({ min_width: 2560, min_height: 1440 }),
       }),
     );
-    expect(api.UpdateSearch).not.toHaveBeenCalled();
+    await user.click(status.getByRole('button', { name: 'Refresh status' }));
+    expect(await status.findByText(savedCount)).toBeVisible();
+    expect(api.RulePreview).toHaveBeenCalledTimes(1);
+    const countReads = api.CountSearchCandidates.mock.calls.length;
+    const statusReads = api.Status.mock.calls.length;
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await waitFor(() => expect(api.Status).toHaveBeenCalledTimes(statusReads + 1));
+    expect(api.CountSearchCandidates).toHaveBeenCalledTimes(countReads);
+    expect(api.RulePreview).toHaveBeenCalledTimes(1);
+
+    inputHealth.last_success = '2026-11-01T12:05:00Z';
+    api.CountSearchCandidates.mockResolvedValueOnce({
+      counts: { discovered: 222, eligible: 7 },
+    });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    const refreshedCount =
+      /222 discovered in the catalog.*7 eligible under saved rules and exclusions/;
+    expect(await status.findByText(refreshedCount)).toBeVisible();
+    expect(api.CountSearchCandidates).toHaveBeenCalledTimes(countReads + 1);
+    expect(api.RulePreview).toHaveBeenCalledTimes(1);
+
     await user.type(screen.getByRole('textbox', { name: /Search terms/ }), 'stars');
-    expect(screen.queryByRole('region', { name: 'Catalog results' })).not.toBeInTheDocument();
+    expect(
+      status.getByText(/Save the changed search criteria before estimating matches/),
+    ).toBeVisible();
+    expect(status.queryByText(/1 matching.*2 rejected/)).not.toBeInTheDocument();
+    expect(status.getByText(refreshedCount)).toBeVisible();
+    expect(api.RulePreview).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(status.queryByText('With your unsaved rules')).not.toBeInTheDocument();
+    expect(status.getByText(refreshedCount)).toBeVisible();
+    expect(api.UpdateSearch).not.toHaveBeenCalled();
+    expect(api.Action).not.toHaveBeenCalled();
+  });
+
+  it('discards a pending draft estimate when its connection goes stale', async () => {
+    const api = installBridge();
+    const user = userEvent.setup();
+    const config = structuredClone(configuration);
+    config.searches = [savedSearch('space')];
+    api.Configuration.mockImplementation(async () => ({ configuration: structuredClone(config) }));
+    const preview = {
+      matched: 1,
+      rejected: 0,
+      unknown: 0,
+      inspected: 1,
+      complete: true,
+      limit: 200,
+      exclusions_applied: false,
+      reasons: {},
+    };
+    let finish!: (result: Awaited<ReturnType<typeof api.RulePreview>>) => void;
+    api.RulePreview.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+
+    await ready();
+    await edit(user, /^Edit Wallhaven search/);
+    const status = within(document.getElementById('source-troubleshooting')!);
+    await user.click(status.getByText('Source troubleshooting'));
+    await user.click(screen.getByRole('button', { name: 'Image rules' }));
+    await user.selectOptions(screen.getByLabelText('Rules'), 'custom');
+    await user.click(screen.getByRole('button', { name: '2560 × 1440' }));
+    await waitFor(() => expect(api.RulePreview).toHaveBeenCalledTimes(1));
+
+    api.Status.mockResolvedValue({ connected: false });
+    await user.click(status.getByRole('button', { name: 'Refresh status' }));
+    expect(
+      await status.findByText(/Reconnect or reload settings to estimate matches/),
+    ).toBeVisible();
+    await act(async () => finish({ preview }));
+    expect(status.queryByText(/1 matching/)).not.toBeInTheDocument();
+    expect(api.RulePreview).toHaveBeenCalledTimes(1);
+  });
+
+  it('explains when a new or disabled search has no estimate and clears an estimate on save', async () => {
+    const api = installBridge();
+    const user = userEvent.setup();
+    let config = structuredClone(configuration);
+    config.searches = [
+      { ...savedSearch('enabled', 'forest'), name: 'Forest' },
+      { ...savedSearch('disabled', 'city'), name: 'City', enabled: false, input_enabled: false },
+    ];
+    api.Configuration.mockImplementation(async () => ({ configuration: structuredClone(config) }));
+    api.UpdateSearch.mockImplementation(async (edit) => {
+      config = {
+        ...config,
+        revision: 'after-save',
+        searches: config.searches.map((search) =>
+          search.id === edit.id ? { ...search, image_rules: edit.image_rules } : search,
+        ),
+      };
+      return { configuration: structuredClone(config) };
+    });
+
+    await ready();
+    const status = within(document.getElementById('source-troubleshooting')!);
+    await user.click(status.getByText('Source troubleshooting'));
+    await add(user, 'Wallhaven search');
+    expect(
+      await status.findByText(/Save and enable this search to estimate matches/),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await edit(user, /^Edit Wallhaven search City/);
+    expect(await status.findByText(/Enable this search to estimate matches/)).toBeVisible();
+    expect(api.RulePreview).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await edit(user, /^Edit Wallhaven search Forest/);
+    await user.click(screen.getByRole('button', { name: 'Image rules' }));
+    await user.selectOptions(screen.getByLabelText('Rules'), 'custom');
+    await user.click(screen.getByRole('button', { name: '2560 × 1440' }));
+    expect(await status.findByText(/1 matching/)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Search saved.')).toBeVisible();
+    expect(status.queryByText('With your unsaved rules')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(api.CountSearchCandidates).toHaveBeenLastCalledWith('enabled', 'after-save'),
+    );
+    expect(api.RulePreview).toHaveBeenCalledTimes(1);
   });
 
   it('retains a color draft through the inline picker and enforces the six-color cap', async () => {

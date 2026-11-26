@@ -115,6 +115,12 @@ Scope storage readings to the connection and service instance, and scope
 capabilities to the active backend too. Async completion should preserve focus
 when the user moved it elsewhere.
 
+In Source status, Wallhaven catalog counts are read when the disclosure opens,
+after a reported successful discovery check, or on explicit status refresh.
+The draft image-rule estimate uses a debounce scoped to the search, reviewed
+configuration revision, current rules and service instance. Ordinary status
+polls leave that estimate in place.
+
 ## Shared UI components
 
 `components/ui/index.tsx` exports small wrappers around ordinary native elements:

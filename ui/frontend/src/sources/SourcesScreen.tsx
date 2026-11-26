@@ -10,6 +10,7 @@ import { FolderEditor } from './FolderEditor';
 import { SearchEditor } from './SearchEditor';
 import { ProviderEditor } from './ProviderEditor';
 import { SourceHealth } from './SourceHealth';
+import type { SearchDraftStatus } from './WallhavenCatalog';
 import { sourceFacts, sourceIdentity, sourceKey, sourceProvider } from './sourceFacts';
 import type { Source } from './sourceFacts';
 import type { EditorCallbacks } from './editorCallbacks';
@@ -38,6 +39,7 @@ export function SourcesScreen() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('All');
   const [view, setView] = useState<View | null>(null);
+  const [searchDraft, setSearchDraft] = useState<SearchDraftStatus | null>(null);
   const [pending, setPending] = useState<Toggle | null>(null);
   const [retry, setRetry] = useState<SaveFailure | null>(null);
   const [removing, setRemoving] = useState<Source | null>(null);
@@ -399,6 +401,7 @@ export function SourcesScreen() {
           {...editorCallbacks}
           mutable={mutable}
           search={view.source?.kind === 'wallhaven' ? view.source.input : undefined}
+          onDraftStatus={setSearchDraft}
         />
       ) : (
         <ProviderEditor
@@ -613,7 +616,7 @@ export function SourcesScreen() {
             })}
           </ul>
         )}
-        <SourceHealth onReview={reviewSource} />
+        <SourceHealth onReview={reviewSource} searchDraft={searchDraft} />
       </div>
       <ConfirmDialog
         id="source-discard"

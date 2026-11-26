@@ -90,6 +90,13 @@ ratio="monitor-similar"
 			t.Fatalf("custom filters: %v", q)
 		}
 	}
+	s.request.InspectCapabilities = func(context.Context, string) (desktop.Capabilities, error) {
+		return desktop.Capabilities{}, nil
+	}
+	unresolved, err := s.CountSearchCandidates(t.Context(), "custom", revision)
+	if err != nil || unresolved.Discovered != 5 || unresolved.Eligible != nil || unresolved.RuleResolution.State != "unavailable" {
+		t.Fatalf("unresolved geometry count: %+v %v", unresolved, err)
+	}
 	_, err = s.CountSearchCandidates(t.Context(), "custom", "stale")
 	requireConfigError(t, err, "config_conflict")
 	_, err = s.CountSearchCandidates(t.Context(), "removed", revision)

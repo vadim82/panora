@@ -127,7 +127,6 @@ interface Props {
   prefix: string;
   provider: string;
   scopeRevision?: string;
-  compact?: boolean;
   inputID: string | null;
   revision: string;
   enrolled: boolean;
@@ -149,7 +148,6 @@ export function SourceRules({
   inherited,
   disabled,
   validate = false,
-  compact = false,
   onChange,
 }: Props) {
   const ui = usePanora();
@@ -338,197 +336,191 @@ export function SourceRules({
       disabled={locked}
       onInvalidCapture={() => setAttempted(true)}
     >
-      {!compact && (
+      {!themeRules && <legend>Image rules</legend>}
+      {!themeRules && (
+        <FormActions>
+          <Button
+            variant="secondary"
+            aria-pressed={
+              draft.rule_mode === 'custom' &&
+              effective.min_width === 1 &&
+              effective.min_height === 1 &&
+              effective.ratio === 'any'
+            }
+            onClick={() => onChange({ ...sourceRuleDraft(), rule_mode: 'custom' })}
+          >
+            Use all images
+          </Button>
+          <Button
+            variant="secondary"
+            pending={working === 'screen'}
+            onClick={(event) => void matchScreen(event.currentTarget)}
+          >
+            {working === 'screen' ? 'Reading display…' : 'Match my screen'}
+          </Button>
+        </FormActions>
+      )}
+      {themeRules ? (
+        <div className="theme-rule-mode" role="radiogroup" aria-label="Image rule settings">
+          {(['inherit', 'custom'] as const).map((value) => (
+            <label key={value}>
+              <input
+                id={draft.rule_mode === value ? `${prefix}-rule-mode` : undefined}
+                type="radio"
+                name={`${prefix}-rule-mode`}
+                checked={draft.rule_mode === value}
+                onChange={() => onChange({ rule_mode: value })}
+              />
+              {value === 'inherit' ? 'Use shared rules' : 'Customize for this source'}
+            </label>
+          ))}
+        </div>
+      ) : (
+        <Field
+          htmlFor={`${prefix}-rule-mode`}
+          error={draft.rule_mode === 'inherit' ? error?.message : undefined}
+        >
+          Filter settings
+          <Select
+            id={`${prefix}-rule-mode`}
+            value={draft.rule_mode}
+            onChange={(event) =>
+              onChange({ rule_mode: event.target.value as SourceRuleDraft['rule_mode'] })
+            }
+          >
+            <option value="custom">Customize for this source</option>
+            <option value="inherit">Use shared rules</option>
+          </Select>
+        </Field>
+      )}
+      {draft.rule_mode === 'inherit' ? (
+        !themeRules && (
+          <p className="subtext">
+            Keeps the shared rules from Settings. Other sources with their own filters are
+            unaffected.
+          </p>
+        )
+      ) : (
         <>
-          {!themeRules && <legend>Image rules</legend>}
-          {!themeRules && (
-            <FormActions>
-              <Button
-                variant="secondary"
-                aria-pressed={
-                  draft.rule_mode === 'custom' &&
-                  effective.min_width === 1 &&
-                  effective.min_height === 1 &&
-                  effective.ratio === 'any'
-                }
-                onClick={() => onChange({ ...sourceRuleDraft(), rule_mode: 'custom' })}
-              >
-                Use all images
-              </Button>
-              <Button
-                variant="secondary"
-                pending={working === 'screen'}
-                onClick={(event) => void matchScreen(event.currentTarget)}
-              >
-                {working === 'screen' ? 'Reading display…' : 'Match my screen'}
-              </Button>
-            </FormActions>
-          )}
-          {themeRules ? (
-            <div className="theme-rule-mode" role="radiogroup" aria-label="Image rule settings">
-              {(['inherit', 'custom'] as const).map((value) => (
-                <label key={value}>
-                  <input
-                    id={draft.rule_mode === value ? `${prefix}-rule-mode` : undefined}
-                    type="radio"
-                    name={`${prefix}-rule-mode`}
-                    checked={draft.rule_mode === value}
-                    onChange={() => onChange({ rule_mode: value })}
-                  />
-                  {value === 'inherit' ? 'Use shared rules' : 'Customize for this source'}
-                </label>
-              ))}
-            </div>
-          ) : (
-            <Field
-              htmlFor={`${prefix}-rule-mode`}
-              error={draft.rule_mode === 'inherit' ? error?.message : undefined}
-            >
-              Filter settings
+          <div className="rules-grid">
+            {themeRules && (
+              <Field htmlFor={`${prefix}-minimum`}>
+                Minimum resolution
+                <Select
+                  id={`${prefix}-minimum`}
+                  value={minimumMode}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setEditMinimum(value === 'custom');
+                    if (value !== 'custom') {
+                      onChange({
+                        min_width: value === 'none' ? '1' : String(inherited.min_width),
+                        min_height: value === 'none' ? '1' : String(inherited.min_height),
+                        exact_resolutions: '',
+                      });
+                    }
+                  }}
+                >
+                  <option value="none">No minimum</option>
+                  {(inherited.min_width !== 1 || inherited.min_height !== 1) && (
+                    <option value="shared">
+                      {inherited.min_width} × {inherited.min_height}
+                    </option>
+                  )}
+                  <option value="custom">Custom dimensions</option>
+                </Select>
+              </Field>
+            )}
+            {!themeRules && <>{dimensionFields}</>}
+            <Field htmlFor={`${prefix}-ratio-mode`}>
+              Aspect ratio
               <Select
-                id={`${prefix}-rule-mode`}
-                value={draft.rule_mode}
+                id={`${prefix}-ratio-mode`}
+                value={mode}
                 onChange={(event) =>
-                  onChange({ rule_mode: event.target.value as SourceRuleDraft['rule_mode'] })
+                  onChange({
+                    ratio: event.target.value === 'custom' ? '16:9' : event.target.value,
+                    ratio_presets: event.target.value === 'presets' ? '16:9' : '',
+                  })
                 }
               >
-                <option value="custom">Customize for this source</option>
-                <option value="inherit">Use shared rules</option>
+                <option value="any">{themeRules ? 'Any shape' : 'Any ratio'}</option>
+                <option value="monitor">Same shape as my screen</option>
+                {mode === 'monitor-similar' && (
+                  <option value="monitor-similar">Similar to my screen</option>
+                )}
+                <option value="presets">Selected ratios</option>
+                <option value="custom">Custom ratio</option>
               </Select>
             </Field>
+          </div>
+          {themeRules && minimumMode === 'custom' && (
+            <div className="rules-grid">{dimensionFields}</div>
           )}
-          {draft.rule_mode === 'inherit' ? (
-            !themeRules && (
-              <p className="subtext">
-                Keeps the shared rules from Settings. Other sources with their own filters are
-                unaffected.
-              </p>
-            )
-          ) : (
-            <>
-              <div className="rules-grid">
-                {themeRules && (
-                  <Field htmlFor={`${prefix}-minimum`}>
-                    Minimum resolution
-                    <Select
-                      id={`${prefix}-minimum`}
-                      value={minimumMode}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setEditMinimum(value === 'custom');
-                        if (value !== 'custom') {
-                          onChange({
-                            min_width: value === 'none' ? '1' : String(inherited.min_width),
-                            min_height: value === 'none' ? '1' : String(inherited.min_height),
-                            exact_resolutions: '',
-                          });
-                        }
-                      }}
-                    >
-                      <option value="none">No minimum</option>
-                      {(inherited.min_width !== 1 || inherited.min_height !== 1) && (
-                        <option value="shared">
-                          {inherited.min_width} × {inherited.min_height}
-                        </option>
-                      )}
-                      <option value="custom">Custom dimensions</option>
-                    </Select>
-                  </Field>
-                )}
-                {!themeRules && <>{dimensionFields}</>}
-                <Field htmlFor={`${prefix}-ratio-mode`}>
-                  Aspect ratio
-                  <Select
-                    id={`${prefix}-ratio-mode`}
-                    value={mode}
+          {!themeRules &&
+            (effective.min_width !== 1 ||
+              effective.min_height !== 1 ||
+              draft.exact_resolutions) && (
+              <Button
+                variant="secondary"
+                onClick={() => onChange({ min_width: '1', min_height: '1', exact_resolutions: '' })}
+              >
+                Clear minimum resolution
+              </Button>
+            )}
+          {mode === 'custom' && (
+            <Field
+              htmlFor={`${prefix}-ratio`}
+              error={error?.field === 'ratio' ? error.message : undefined}
+            >
+              Custom width:height ratio
+              <TextInput
+                id={`${prefix}-ratio`}
+                required
+                maxLength={128}
+                pattern="[1-9][0-9]*:[1-9][0-9]*"
+                value={draft.ratio}
+                onChange={(event) => onChange({ ratio: event.target.value })}
+              />
+            </Field>
+          )}
+          {mode === 'presets' && (
+            <fieldset
+              id={`${prefix}-ratio-presets`}
+              tabIndex={-1}
+              className="preset-options"
+              aria-invalid={error?.field === 'ratio-presets' || undefined}
+              aria-describedby={
+                error?.field === 'ratio-presets' ? `${prefix}-ratio-presets-error` : undefined
+              }
+            >
+              <legend>Choose one or more ratios</legend>
+              {presets.map((ratio) => (
+                <label key={ratio}>
+                  <input
+                    type="checkbox"
+                    checked={effective.ratio_presets.includes(ratio)}
                     onChange={(event) =>
                       onChange({
-                        ratio: event.target.value === 'custom' ? '16:9' : event.target.value,
-                        ratio_presets: event.target.value === 'presets' ? '16:9' : '',
+                        ratio_presets: presets
+                          .filter((value) =>
+                            value === ratio
+                              ? event.target.checked
+                              : effective.ratio_presets.includes(value),
+                          )
+                          .join(','),
                       })
                     }
-                  >
-                    <option value="any">{themeRules ? 'Any shape' : 'Any ratio'}</option>
-                    <option value="monitor">Same shape as my screen</option>
-                    {mode === 'monitor-similar' && (
-                      <option value="monitor-similar">Similar to my screen</option>
-                    )}
-                    <option value="presets">Selected ratios</option>
-                    <option value="custom">Custom ratio</option>
-                  </Select>
-                </Field>
-              </div>
-              {themeRules && minimumMode === 'custom' && (
-                <div className="rules-grid">{dimensionFields}</div>
+                  />{' '}
+                  {ratio}
+                </label>
+              ))}
+              {error?.field === 'ratio-presets' && (
+                <p id={`${prefix}-ratio-presets-error`} className="ui-field-error">
+                  {error.message}
+                </p>
               )}
-              {!themeRules &&
-                (effective.min_width !== 1 ||
-                  effective.min_height !== 1 ||
-                  draft.exact_resolutions) && (
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      onChange({ min_width: '1', min_height: '1', exact_resolutions: '' })
-                    }
-                  >
-                    Clear minimum resolution
-                  </Button>
-                )}
-              {mode === 'custom' && (
-                <Field
-                  htmlFor={`${prefix}-ratio`}
-                  error={error?.field === 'ratio' ? error.message : undefined}
-                >
-                  Custom width:height ratio
-                  <TextInput
-                    id={`${prefix}-ratio`}
-                    required
-                    maxLength={128}
-                    pattern="[1-9][0-9]*:[1-9][0-9]*"
-                    value={draft.ratio}
-                    onChange={(event) => onChange({ ratio: event.target.value })}
-                  />
-                </Field>
-              )}
-              {mode === 'presets' && (
-                <fieldset
-                  id={`${prefix}-ratio-presets`}
-                  tabIndex={-1}
-                  className="preset-options"
-                  aria-invalid={error?.field === 'ratio-presets' || undefined}
-                  aria-describedby={
-                    error?.field === 'ratio-presets' ? `${prefix}-ratio-presets-error` : undefined
-                  }
-                >
-                  <legend>Choose one or more ratios</legend>
-                  {presets.map((ratio) => (
-                    <label key={ratio}>
-                      <input
-                        type="checkbox"
-                        checked={effective.ratio_presets.includes(ratio)}
-                        onChange={(event) =>
-                          onChange({
-                            ratio_presets: presets
-                              .filter((value) =>
-                                value === ratio
-                                  ? event.target.checked
-                                  : effective.ratio_presets.includes(value),
-                              )
-                              .join(','),
-                          })
-                        }
-                      />{' '}
-                      {ratio}
-                    </label>
-                  ))}
-                  {error?.field === 'ratio-presets' && (
-                    <p id={`${prefix}-ratio-presets-error`} className="ui-field-error">
-                      {error.message}
-                    </p>
-                  )}
-                </fieldset>
-              )}
-            </>
+            </fieldset>
           )}
         </>
       )}
@@ -539,11 +531,7 @@ export function SourceRules({
           disabled={locked}
           onClick={(event) => void inspect(event.currentTarget)}
         >
-          {working === 'preview'
-            ? 'Checking…'
-            : compact
-              ? 'Preview draft image rules'
-              : 'Preview source matches'}
+          {working === 'preview' ? 'Checking…' : 'Preview source matches'}
         </Button>
       ) : (
         <p className="subtext">
