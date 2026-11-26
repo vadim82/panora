@@ -63,6 +63,14 @@ for running `panora serve` directly with the normal wallpaper backend.
 Run `mise exec -- task check` before submitting. This runs the Go race
 detector locally. GitHub Actions runs the Go suites without race
 instrumentation. After Go edits, run `mise exec -- task fmt` first.
+
+GitHub Actions checks diff whitespace on pull requests and pushes to `main`.
+Changes limited to README, this guide, or Markdown under `docs/` skip the app
+jobs. A Homebrew formula change confined to the release tag and pinned commit
+also skips the app jobs. The Homebrew workflow still verifies installation and
+the archive on formula pull requests. Changes to workflow files, docs fixtures,
+or other code run the full app checks.
+
 `mise exec -- task setup` installs the prek pre-commit hook. It checks staged Go formatting, frontend formatting and
 lint, and diff whitespace without rewriting files. Use
 `mise exec -- prek run` to run the staged checks on demand.
