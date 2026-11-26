@@ -139,14 +139,6 @@ of one detected display. Under **Aspect ratios**, select preset or custom
 ratios, or use **Same shape as my screen** with the pixel tolerance from
 Settings. **Similar to my screen** retains the legacy 5% rule.
 
-**Catalog results** offers two checks for a saved, enabled search.
-**Count saved candidates** shows the discovered catalog total and the
-eligible count under the saved rules and exclusions when display geometry
-can be resolved. **Preview draft image rules** checks the current geometry
-draft against known catalog images, including unknown or partial results.
-Save changes to search criteria before previewing the affected catalog.
-Panora validates originals when it selects them for playback.
-
 Open the **Omarchy theme** row to see the active theme, its palette, and the
 total and eligible still counts. Use **View all** to browse the larger
 collection. The common **Image rules** control starts with shared rules and
@@ -158,10 +150,24 @@ Use **Rename** to set a display name or clear it to show the search terms or
 **Wallhaven**. Use **More settings** to adjust sort direction, pages and refresh
 timing.
 
-Open **Source troubleshooting** to see the latest checks and refresh the status.
-For a saved Wallhaven search, **Show Wallhaven URL** gives you a browser URL you
-can copy. Panora still applies local eligibility rules after discovery.
-The **Check sources** shortcut on Now opens and focuses that disclosure.
+Open **Source troubleshooting** to see **Source status**. For each enabled
+saved Wallhaven search, the catalog count shows how many candidates Panora has
+discovered and how many are eligible under the saved rules and exclusions.
+If the screen shape can't be resolved, the discovered total is still shown.
+The latest check's inspected count is reported separately. Catalog counts
+refresh after successful discovery checks while Source status is open. Use
+**Refresh status** to read current counts on demand.
+
+While editing valid image rules for a saved, enabled search, **With your unsaved
+rules** shows a catalog estimate after a short pause. The saved count stays
+visible. The estimate reports unknown images and partial checks, and uses the
+existing catalog without exclusions. Save changed search criteria before checking
+the affected catalog. Saving or discarding the draft clears the estimate.
+
+**Show Wallhaven URL** gives you a browser URL you can copy. Panora applies
+local eligibility rules after discovery and validates originals when selecting
+wallpapers. The **Check sources** shortcut on Now opens and focuses the
+disclosure.
 
 A rejected rotation change retains the saved value and offers **Retry** in
 the row’s actions. A revision conflict

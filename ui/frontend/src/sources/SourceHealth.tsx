@@ -3,6 +3,8 @@ import { useRef, useState } from 'react';
 import { copyText, usePanora } from '../client';
 import { playbackWarnings } from '../now/playbackWarnings';
 import type { Configuration, Failure, ProviderHealth, Retry } from '../types';
+import { DraftSearchMatches, SavedSearchCount, useSearchCounts } from './WallhavenCatalog';
+import type { SearchDraftStatus } from './WallhavenCatalog';
 
 export const providerLabel = (id: string, config?: Configuration | null): string =>
   ({ local: 'Local folders', wallhaven: 'Wallhaven', omarchy: 'Omarchy theme' })[id] ||
@@ -109,11 +111,60 @@ export function reviewImageRules(navigate: (page: 'providers') => void): void {
     field?.focus();
   });
 }
-export function SourceHealth({ onReview }: { onReview(provider: string, id: string): void }) {
+export function SourceHealth({
+  onReview,
+  searchDraft,
+}: {
+  onReview(provider: string, id: string): void;
+  searchDraft?: SearchDraftStatus | null;
+}) {
   const ui = usePanora(),
     status = ui.snapshot?.status,
-    providers = status?.providers || [],
+    reported = status?.providers || [],
     configuration = ui.liveConfiguration || ui.configuration;
+  const [open, setOpen] = useState(false);
+  const [countRefresh, setCountRefresh] = useState(0);
+  const searches = new Map(configuration?.searches.map((search) => [search.id, search]));
+  const wallhaven = reported.find((provider) => provider.id === 'wallhaven');
+  const reportedSearches = new Map(wallhaven?.inputs.map((input) => [input.id, input]));
+  const unreported = wallhaven?.omitted_inputs
+    ? []
+    : [...searches.values()].filter((search) => !reportedSearches.has(search.id));
+  const providers: ProviderHealth[] = unreported.length
+    ? [
+        ...reported.filter((provider) => provider.id !== 'wallhaven'),
+        {
+          id: 'wallhaven',
+          enabled: unreported.some((search) => search.enabled),
+          state: 'unreported',
+          ...wallhaven,
+          inputs: [
+            ...(wallhaven?.inputs || []),
+            ...unreported.map((search) => ({
+              id: search.id,
+              state: search.enabled ? 'unreported' : 'disabled',
+            })),
+          ],
+        },
+      ]
+    : reported;
+  const revision = configuration?.revision;
+  const active = open && ui.page === 'providers';
+  const connection =
+    active && ui.connected && !ui.blocked && revision === ui.configuration?.revision
+      ? JSON.stringify([status?.instance_id, configuration?.effective.backend])
+      : null;
+  const countedSearches = [...searches.values()]
+    .filter(
+      ({ id, enabled }) => enabled && (!wallhaven?.omitted_inputs || reportedSearches.has(id)),
+    )
+    .map(({ id }) => ({ id, lastSuccess: reportedSearches.get(id)?.last_success }));
+  const counts = useSearchCounts(countedSearches, revision, connection, countRefresh);
+  const activeDraft = active ? searchDraft : null;
+  const draftInStatus =
+    activeDraft?.id &&
+    searches.has(activeDraft.id) &&
+    (!wallhaven?.omitted_inputs || reportedSearches.has(activeDraft.id));
   const [checking, setChecking] = useState(false),
     [notice, setNotice] = useState('');
   const checkingRef = useRef(false),
@@ -128,6 +179,7 @@ export function SourceHealth({ onReview }: { onReview(provider: string, id: stri
     setNotice('');
     try {
       const result = await ui.refresh();
+      if (result?.connected) setCountRefresh((value) => value + 1);
       setNotice(
         result?.connected
           ? 'Status refreshed. Automatic source checks and retry times are unchanged.'
@@ -147,7 +199,11 @@ export function SourceHealth({ onReview }: { onReview(provider: string, id: stri
     }
   }
   return (
-    <details id="source-troubleshooting" className="source-health">
+    <details
+      id="source-troubleshooting"
+      className="source-health"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
       <summary>Source troubleshooting</summary>
       <div className="source-health-heading">
         <h2>Source status</h2>
@@ -209,10 +265,7 @@ export function SourceHealth({ onReview }: { onReview(provider: string, id: stri
                 provider.id === 'local'
                   ? configuration?.folders.find((item) => item.id === input.id)
                   : undefined;
-              const search =
-                provider.id === 'wallhaven'
-                  ? configuration?.searches.find((item) => item.id === input.id)
-                  : undefined;
+              const search = provider.id === 'wallhaven' ? searches.get(input.id) : undefined;
               const external = configuration?.inputs?.find(
                 (item) => item.provider_id === provider.id && item.id === input.id,
               );
@@ -249,6 +302,19 @@ export function SourceHealth({ onReview }: { onReview(provider: string, id: stri
                     </>
                   ) : (
                     <p className="subtext">Image counts have not been reported for this check.</p>
+                  )}
+                  {active && search?.enabled && (
+                    <SavedSearchCount
+                      result={counts?.get(search.id)?.result}
+                      available={Boolean(connection)}
+                    />
+                  )}
+                  {activeDraft && search && search.id === activeDraft.id && (
+                    <DraftSearchMatches
+                      draft={activeDraft}
+                      connection={connection}
+                      revision={revision}
+                    />
                   )}
                   {input.state === 'empty' && !input.failure && (
                     <p>
@@ -298,6 +364,7 @@ export function SourceHealth({ onReview }: { onReview(provider: string, id: stri
                         id={search.id}
                         revision={configuration.revision}
                         disabled={disabled}
+                        catalogURL={counts?.get(search.id)?.result.counts?.search_url}
                       />
                     )}
                     {input.failure?.code === 'filter_mismatch' && (
@@ -322,6 +389,9 @@ export function SourceHealth({ onReview }: { onReview(provider: string, id: stri
           </li>
         ))}
       </ul>
+      {activeDraft && !draftInStatus && (
+        <DraftSearchMatches draft={activeDraft} connection={connection} revision={revision} />
+      )}
       <div id="provider-warnings">
         {warnings.length > 0 && (
           <details>
@@ -333,8 +403,8 @@ export function SourceHealth({ onReview }: { onReview(provider: string, id: stri
         )}
       </div>
       <p className="subtext">
-        Counts describe the latest metadata check, not the complete collection or images ready to
-        display. Panora checks sources automatically, even while rotation is paused.
+        Panora checks sources automatically, even while rotation is paused. Catalog counts use known
+        image dimensions. Panora validates originals when selecting wallpapers.
       </p>
     </details>
   );
@@ -344,10 +414,12 @@ function WallhavenSearchURL({
   id,
   revision,
   disabled,
+  catalogURL,
 }: {
   id: string;
   revision: string;
   disabled: boolean;
+  catalogURL?: string;
 }) {
   const ui = usePanora();
   const [url, setURL] = useState('');
@@ -356,6 +428,10 @@ function WallhavenSearchURL({
   const field = useRef<HTMLInputElement>(null);
 
   async function show() {
+    if (!url && catalogURL) {
+      setURL(catalogURL);
+      return;
+    }
     setLoading(true);
     setNotice('');
     const result = await ui.request('CountSearchCandidates', [id, revision]);

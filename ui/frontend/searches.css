@@ -87,7 +87,6 @@
 
 .search-picks,
 .search-color-tools,
-.search-candidate-count,
 .search-sort,
 .search-editor .search-editor-footer {
   display: flex;
@@ -98,10 +97,6 @@
 
 .search-picks {
   margin-top: 8px;
-}
-
-.search-candidate-count {
-  margin-top: 12px;
 }
 
 .search-picks .ui-button,
@@ -430,8 +425,7 @@
   padding-block: 10px;
 }
 
-.search-geometry h4,
-.search-catalog-results h4 {
+.search-geometry h4 {
   margin: 0;
   font-size: inherit;
 }
@@ -439,26 +433,6 @@
 .search-geometry h4 + p,
 .search-custom {
   margin-top: 8px;
-}
-
-.search-catalog-results {
-  display: grid;
-  gap: 6px;
-  margin-top: 14px;
-  border-top: 1px solid var(--line);
-  padding-block-start: 10px;
-}
-
-.search-catalog-results .search-candidate-count,
-.search-catalog-results .source-rules {
-  border: 0;
-  margin: 0;
-  padding: 0;
-}
-
-.search-catalog-results .source-rules > button,
-.search-candidate-count > button {
-  border-color: var(--line);
 }
 
 @media (max-width: 480px) {
