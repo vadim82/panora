@@ -77,8 +77,10 @@ function DimensionsInput({
   minWidth?: string;
   minHeight?: string;
 }) {
-  const [width, setWidth] = useState(minWidth || '');
-  const [height, setHeight] = useState(minHeight || '');
+  const [widthDraft, setWidth] = useState<string>();
+  const [heightDraft, setHeight] = useState<string>();
+  const width = widthDraft ?? minWidth ?? '';
+  const height = heightDraft ?? minHeight ?? '';
   const [error, setError] = useState(false);
   function add() {
     const valid = safePositive(width) && safePositive(height);
@@ -515,8 +517,8 @@ export function SearchFilters({
               key={mode}
               kind="size"
               sizeMode={mode}
-              minWidth={mode === 'minimum' ? draft.min_width : undefined}
-              minHeight={mode === 'minimum' ? draft.min_height : undefined}
+              minWidth={mode === 'minimum' && minimum ? draft.min_width : undefined}
+              minHeight={mode === 'minimum' && minimum ? draft.min_height : undefined}
               onAdd={(width, height) => addResolution(width + 'x' + height)}
             />
           </section>
