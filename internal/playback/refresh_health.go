@@ -93,7 +93,7 @@ func healthPriority(state string) int {
 // status never waits for providers, image inspection, or SQL.
 func (s *Service) publishDiscoveryHealth(config Config, jobs map[string]*discoverySchedule, running bool, configWarning string) {
 	if configWarning == "" {
-		s.setSetupRequired(!config.HasEnabledInputs())
+		s.observeSourceConfig(config)
 	}
 	providers := make([]ProviderRefreshHealth, 0, len(config.Providers))
 	warnings := []string{}

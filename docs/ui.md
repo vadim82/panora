@@ -207,8 +207,13 @@ The packaged service adds the button on Omarchy 4.5. It appears while the
 service runs, including at login if you enable **Start Panora at login**.
 
 The [optional bar plugin](../integrations/omarchy/README.md) provides a bounded
-preview of the last accepted image and a row with Previous, Play/Pause and Next.
-The bar icon and popup follow the active Omarchy theme as it changes. Right-click
+Cover Flow preview of the last accepted image. Its resolution and aspect ratio
+appear below, followed by the provider and source name when available. Click
+a side card or use Left or Right in the focused popup to change wallpaper. The
+strip scales with the popup and keeps navigation available when a thumbnail is
+missing. Use the rotation control below the preview to pause or resume.
+**Open Panora** launches the main window when the native client is configured.
+The popup follows the active Omarchy palette, typography and control styling. Right-click
 the button, or press Menu or Shift+F10 in the wallpaper popup, for **Open Panora**,
 **About Panora**, **Hide from bar**, and **Quit Panora**. Hide disables the bar
 widget and leaves rotation running. Re-enable it in Omarchy's Plugins settings.

@@ -12,12 +12,37 @@ function disconnected() {
 function text(value, limit) {
     return typeof value === "string" ? value.replace(/[\x00-\x1f\x7f]/g, " ").slice(0, limit) : "";
 }
+function aspectRatio(width, height) {
+    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1) return "";
+    var divisor = width;
+    var remainder = height;
+    while (remainder !== 0) {
+        var next = divisor % remainder;
+        divisor = remainder;
+        remainder = next;
+    }
+    return (width / divisor) + ":" + (height / divisor);
+}
 function imageKey(snapshot) {
     return snapshot.connected && snapshot.image
         ? snapshot.instance_id + "/" + snapshot.image.id + "/" + snapshot.image.history_id : "";
 }
-function parse(raw) {
-    if (typeof raw !== "string" || raw.length > 3 * 1024 * 1024) return null;
+function snapshotLimit(coverFlow) {
+    return (coverFlow ? 9 : 3) * 1024 * 1024;
+}
+function previewURI(value) {
+    return typeof value === "string" && value.length <= 2800000
+        && /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
+}
+function flowNeighbor(value, historyRequired) {
+    if (!value || typeof value.id !== "string" || !/^[1-9][0-9]{0,18}$/.test(value.id)
+        || !previewURI(value.data_uri)) return null;
+    if ((historyRequired || value.history_id !== undefined) &&
+        (typeof value.history_id !== "string" || !value.history_id || value.history_id.length > 64)) return null;
+    return {id: value.id, history_id: value.history_id || "", data_uri: value.data_uri};
+}
+function parse(raw, coverFlow) {
+    if (typeof raw !== "string" || raw.length > snapshotLimit(coverFlow)) return null;
     var value;
     try { value = JSON.parse(raw); } catch (e) { return null; }
     if (!value || value.version !== 1 || typeof value.connected !== "boolean") return null;
@@ -36,14 +61,19 @@ function parse(raw) {
             || typeof image.history_id !== "string" || !image.history_id || image.history_id.length > 64
             || ["not_requested", "available", "unavailable", "invalid"].indexOf(image.preview_state) < 0) return null;
         result.image = {id: image.id, history_id: image.history_id, title: text(image.title, 256),
-            origin: text(image.origin, 128), preview_state: image.preview_state,
+            origin: text(image.origin, 128), source_name: text(image.source_name, 128), preview_state: image.preview_state,
             width: Number.isSafeInteger(image.width) && image.width > 0 ? image.width : 0,
             height: Number.isSafeInteger(image.height) && image.height > 0 ? image.height : 0};
         if (image.preview_state === "available") {
-            if (typeof image.data_uri !== "string" || image.data_uri.length > 2800000
-                || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(image.data_uri)) return null;
+            if (!previewURI(image.data_uri)) return null;
             result.image.data_uri = image.data_uri;
         }
+    }
+    if (typeof value.flow_revision === "string" && /^[0-9a-f]{64}$/.test(value.flow_revision))
+        result.flow_revision = value.flow_revision;
+    if (coverFlow && result.image && result.flow_revision && value.flow &&
+        typeof value.flow === "object" && !Array.isArray(value.flow)) {
+        result.flow = {previous: flowNeighbor(value.flow.previous, true), next: flowNeighbor(value.flow.next, false)};
     }
     return result;
 }
