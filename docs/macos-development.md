@@ -86,14 +86,13 @@ Apple notarization ticket. [Apple's notarization guide](https://developer.apple.
 
 The public repository also serves as the Homebrew tap. The formula pins the
 release tag and its full source commit. After a stable GitHub release,
-the **Homebrew formula** workflow opens a PR against `main` for the new tag.
-For releases published with `GITHUB_TOKEN` in another workflow, dispatch
-**Homebrew formula** manually with the published tag as `release_tag`.
+the **Homebrew formula update** workflow opens the PR and attempts a protected
+merge once verification passes. If another workflow publishes a release with
+`GITHUB_TOKEN`, dispatch **Homebrew formula update** from `main` with the
+published tag as `release_tag`.
 
-The repository's Actions settings must allow GitHub Actions to create pull
-requests. Use **Approve workflows to run** in the generated PR to start its
-checks. If the PR cannot be opened, the workflow run still provides the
-formula patch for a maintainer PR.
+See [release preparation](releases.md#update-the-homebrew-formula) for the
+GitHub App setup, retry instructions and manual approval path.
 
 The PR checks build and test the formula on an Apple silicon Mac. They also
 upload the verified ad-hoc ZIP, checksum list, and build receipt for the same
