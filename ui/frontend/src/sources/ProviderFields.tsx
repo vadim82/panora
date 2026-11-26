@@ -21,6 +21,7 @@ type Props = {
   optionalLabel?: boolean;
   suggest?: Suggestions;
   showValues?: boolean;
+  leadingControl?: ReactNode;
   addLabel?: string;
   validateValue?(value: string, selected: string[]): string | undefined;
   extraSwatches?: string[];
@@ -82,7 +83,8 @@ export function ProviderField({
   optionalLabel,
   suggest,
   showValues = true,
-  addLabel = 'Add value',
+  leadingControl,
+  addLabel,
   validateValue,
   extraSwatches = [],
   swatchTools,
@@ -166,7 +168,8 @@ export function ProviderField({
             label={field.label}
             describedBy={field.help ? `${controlID}-help` : undefined}
             placeholder={field.placeholder}
-            addLabel={addLabel}
+            addLabel={addLabel || 'Add value'}
+            leadingControl={leadingControl}
             selected={values}
             suggest={suggest}
             onAdd={add}
@@ -196,9 +199,9 @@ export function ProviderField({
       );
     case 'swatches': {
       const labels = new Map(options.map((option) => [option.value, option.label]));
-      const choices = [...new Set([...labels.keys(), ...extraSwatches, ...values])].filter((item) =>
-        /^#[0-9a-f]{6}$/i.test(item),
-      );
+      const choices = [
+        ...new Set([...labels.keys(), ...extraSwatches, ...(showValues ? values : [])]),
+      ].filter((item) => /^#[0-9a-f]{6}$/i.test(item));
       return (
         <>
           <Choices
@@ -217,14 +220,14 @@ export function ProviderField({
             }}
           />
           <div className="search-color-tools">
-            {swatchTools}
             <input
               aria-label="Custom color"
               type="color"
               value={custom}
               onChange={(event) => setCustom(event.target.value)}
             />
-            <Button onClick={() => add(custom)}>Add color</Button>
+            <Button onClick={() => add(custom)}>{addLabel || 'Add color'}</Button>
+            {swatchTools}
           </div>
           {help}
           {(notice || error) && <Notice tone="error">{notice || error}</Notice>}

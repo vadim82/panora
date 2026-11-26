@@ -539,7 +539,11 @@ export function SourceRules({
           disabled={locked}
           onClick={(event) => void inspect(event.currentTarget)}
         >
-          {working === 'preview' ? 'Checking…' : 'Preview source matches'}
+          {working === 'preview'
+            ? 'Checking…'
+            : compact
+              ? 'Preview draft image rules'
+              : 'Preview source matches'}
         </Button>
       ) : (
         <p className="subtext">

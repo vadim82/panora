@@ -35,10 +35,10 @@ export const wallhavenManifest: EditorManifest = {
       fields: [
         {
           key: 'tags',
-          label: 'Tag name',
+          label: 'Tags',
           control: 'multivalue',
           default: [],
-          placeholder: 'Tag name',
+          placeholder: 'Enter a tag…',
           suggest: 'suggest',
           help: 'Choose a suggestion or type a tag name and press Enter to add it.',
         },

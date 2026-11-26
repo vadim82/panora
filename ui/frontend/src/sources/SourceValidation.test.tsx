@@ -94,13 +94,13 @@ it('allows removing the final category and keeps optional terms', async () => {
     'keep mountains',
   );
   await user.click(screen.getByRole('button', { name: 'Filters' }));
-  await user.click(screen.getByRole('button', { name: 'Categories' }));
-  const general = screen.getByRole('button', { name: 'General' });
+  const general = screen.getByRole('checkbox', { name: 'General' });
+  const anime = screen.getByRole('checkbox', { name: 'Anime' });
   await user.click(general);
-  await user.click(screen.getByRole('button', { name: 'Anime' }));
-  await user.click(screen.getByRole('button', { name: 'Remove filter Anime' }));
-  await user.click(screen.getByRole('button', { name: 'Remove filter General' }));
-  expect(general).toHaveAttribute('aria-pressed', 'false');
+  await user.click(anime);
+  await user.click(anime);
+  await user.click(general);
+  expect(general).not.toBeChecked();
   await user.click(screen.getByRole('button', { name: 'Enable Wallhaven and add source' }));
   await waitFor(() =>
     expect(api.AddSearch).toHaveBeenCalledWith(
