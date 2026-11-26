@@ -156,8 +156,7 @@
   background: var(--surface);
 }
 
-.search-tag-input,
-.search-dimensions {
+.search-tag-input {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
@@ -168,6 +167,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: end;
+  gap: 6px;
 }
 
 .search-dimensions .ui-field {
@@ -263,8 +263,9 @@
 }
 
 .search-disclosure {
+  --disclosure-line: color-mix(in srgb, var(--line) 75%, var(--muted));
   margin-top: 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--disclosure-line);
   border-radius: 8px;
   background: var(--bg);
 }
@@ -301,7 +302,7 @@
   display: grid;
   gap: 12px;
   padding: 12px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--disclosure-line);
 }
 
 .search-disclosure-content :is(.search-tags, .search-colors) {
@@ -314,13 +315,15 @@
   align-items: start;
 }
 
-.search-tags .search-tag-input :is(input, select, button) {
+.search-editor .search-tags .search-tag-input :is(input, select, button) {
   min-height: var(--control-height);
   margin: 0;
 }
 
-.search-tags .search-tag-input select {
+.search-editor .search-tags .search-tag-input select,
+.search-editor .search-control-row select {
   width: auto;
+  padding-inline-end: 28px;
 }
 
 .search-tags .search-chip-row {
