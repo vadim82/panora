@@ -410,6 +410,27 @@ returns `{"version":1,"values":[...]}` when available. It reads suggestions only
 two-second deadline, and never applies the source draft. See the
 [versioned editor contract](providers/editor-manifest.md).
 
+### Wikimedia Commons search route
+
+`POST /v1/providers/commons/search` accepts a JSON object of at most 2 KiB.
+Supply `query`, `category` or both. Set `format` to `jpeg` or `png` to
+restrict the default supported formats. `min_width` and `min_height` apply
+minimums. An `exact_width` and `exact_height` pair takes precedence. The
+optional `offset` starts at zero and cannot exceed 200.
+
+The response contains `version`, `results` and a `next_offset` when another
+page is available. Each result includes `page_id`, `revision`, `terms_digest`,
+`title`, `width`, `height`, `author`, `license_name`, `license_url`,
+`page_url` and an optional inline JPEG `thumbnail`. Search previews neither
+save settings nor authorize playback.
+
+Use the revision-checked provider input routes to save an approved search
+under `provider_id: "wikimedia_commons"`. Set `values.collection` to `search`
+and include the search settings, excluding `offset`, and `values.approved`,
+an array of 1 to 36 reviewed `{page_id, revision, terms_digest}` objects.
+For the bundled collection, send only `values.collection: "featured-landscapes"`.
+See [Wikimedia Commons](providers/commons.md) for the approval workflow.
+
 ### Omarchy theme routes
 
 `POST /v1/configuration/omarchy-theme` adds the singleton source. Send the

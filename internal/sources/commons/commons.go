@@ -1,5 +1,5 @@
-// Package commons discovers a reviewed landscape collection from Wikimedia
-// Commons without downloading originals or changing playback state.
+// Package commons searches Wikimedia Commons and discovers approved files
+// without downloading originals or changing playback state.
 package commons
 
 import (
@@ -21,10 +21,9 @@ import (
 )
 
 const (
-	Name         = "Wikimedia Commons"
-	Collection   = "Featured landscapes"
-	collectionID = "featured-landscapes"
-	maxBatch     = 12
+	Name       = "Wikimedia Commons"
+	Collection = "Featured landscapes"
+	maxBatch   = 12
 )
 
 // Each entry was reviewed for safe-for-work imagery, correct credit, and reuse
@@ -44,10 +43,12 @@ type reviewedFile struct {
 func (file reviewedFile) id() string { return strconv.Itoa(file.PageID) + "-" + file.SHA1 }
 
 type Provider struct {
-	endpoint   string
-	client     *http.Client
-	files      []reviewedFile
-	collection string
+	endpoint         string
+	client           *http.Client
+	files            []reviewedFile
+	collection       string
+	searchSlot       chan struct{}
+	searchRetryUntil time.Time // guarded by searchSlot
 }
 
 func New() *Provider {
@@ -65,7 +66,7 @@ func newProvider(endpoint string, reviewed []byte) *Provider {
 		client: &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}},
-		files: files, collection: hex.EncodeToString(hash[:]),
+		files: files, collection: hex.EncodeToString(hash[:]), searchSlot: make(chan struct{}, 1),
 	}
 }
 
@@ -83,9 +84,9 @@ func Editor() source.EditorManifest {
 		Version: source.EditorVersion,
 		Groups: []source.EditorGroup{{ID: "collection", Fields: []source.EditorField{{
 			Key: "collection", Label: "Collection", Control: "select", Required: true,
-			Help:    "Panora contacts Wikimedia Commons to find and download reviewed landscape wallpapers. No account or API key is needed.",
-			Default: json.RawMessage(`"featured-landscapes"`),
-			Options: []source.EditorOption{{Label: Collection, Value: collectionID}},
+			Help:    "Panora contacts Wikimedia Commons to find and download wallpapers. Search results enter rotation after approval.",
+			Default: json.RawMessage(`"search"`),
+			Options: []source.EditorOption{{Label: "Search Commons", Value: source.CommonsLive}, {Label: Collection, Value: source.CommonsFeatured}},
 		}}}},
 	}
 }
@@ -94,13 +95,8 @@ func (*Provider) Validate(ctx context.Context, raw json.RawMessage) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	var config struct {
-		Collection string `json:"collection"`
-	}
-	if source.Decode(raw, &config) != nil || config.Collection != collectionID {
-		return source.Failure("invalid_config", "select the Featured landscapes collection")
-	}
-	return nil
+	_, err := source.DecodeCommonsConfig(raw)
+	return err
 }
 
 type position struct {
@@ -110,31 +106,48 @@ type position struct {
 
 func (p *Provider) Discover(ctx context.Context, params source.DiscoverParams) (source.Page, error) {
 	page := source.Page{Candidates: []source.Candidate{}, NextCursor: json.RawMessage("null")}
-	if err := p.Validate(ctx, params.Config); err != nil {
+	cfg, err := source.DecodeCommonsConfig(params.Config)
+	if err != nil {
 		return page, err
 	}
 	if params.Limit < 1 || params.Limit > source.MaxPageSize {
 		return page, source.Failure("invalid_config", "invalid Commons page limit")
 	}
-	pos := position{Collection: p.collection}
+	live := cfg.Collection == source.CommonsLive
+	files, collection := p.files, p.collection
+	if live {
+		files = make([]reviewedFile, len(cfg.Approved))
+		for i, approved := range cfg.Approved {
+			files[i] = reviewedFile{PageID: approved.PageID}
+		}
+		hash := sha256.Sum256(params.Config)
+		collection = hex.EncodeToString(hash[:])
+	}
+	pos := position{Collection: collection}
 	if len(params.Cursor) != 0 && !source.IsNull(params.Cursor) {
 		if len(params.Cursor) > source.MaxCursorBytes || source.Decode(params.Cursor, &pos) != nil ||
-			pos.Collection != p.collection || pos.Offset < 1 || pos.Offset >= len(p.files) {
+			pos.Collection != collection || pos.Offset < 1 || pos.Offset >= len(files) {
 			return page, source.Failure("invalid_cursor", "cursor does not match the reviewed collection")
 		}
 	}
-	end := min(len(p.files), pos.Offset+min(params.Limit, maxBatch))
-	items, err := p.fetch(ctx, p.files[pos.Offset:end])
+	end := min(len(files), pos.Offset+min(params.Limit, maxBatch))
+	items, err := p.fetch(ctx, files[pos.Offset:end])
 	if err != nil {
 		return page, err
 	}
-	for _, reviewed := range p.files[pos.Offset:end] {
-		if c, ok := acceptedCandidate(reviewed, items[reviewed.PageID]); ok {
+	for i := pos.Offset; i < end; i++ {
+		pin := files[i]
+		if live {
+			item := items[pin.PageID]
+			if c, approval, ok := liveCandidate(item); ok && approval == cfg.Approved[i] && cfg.Allows(c) {
+				page.Candidates = append(page.Candidates, c)
+			}
+		} else if c, ok := acceptedCandidate(pin, items[pin.PageID]); ok {
 			page.Candidates = append(page.Candidates, c)
 		}
 	}
-	if end < len(p.files) {
-		page.NextCursor, _ = json.Marshal(position{p.collection, end})
+	if end < len(files) {
+		page.NextCursor, _ = json.Marshal(position{collection, end})
 	}
 	return page, nil
 }
@@ -144,8 +157,12 @@ type reference struct {
 }
 
 func (p *Provider) Resolve(ctx context.Context, params source.ResolveParams) (source.Resolved, error) {
-	if err := p.Validate(ctx, params.Config); err != nil {
+	cfg, err := source.DecodeCommonsConfig(params.Config)
+	if err != nil {
 		return source.Resolved{}, err
+	}
+	if cfg.Collection == source.CommonsLive {
+		return p.resolveLive(ctx, cfg, params)
 	}
 	var ref reference
 	if source.Decode(params.Ref, &ref) != nil {
@@ -170,18 +187,20 @@ func (p *Provider) Resolve(ctx context.Context, params source.ResolveParams) (so
 }
 
 type imageInfo struct {
-	URL         string `json:"url"`
-	PageURL     string `json:"descriptionurl"`
-	MIME        string `json:"mime"`
-	SHA1        string `json:"sha1"`
-	Width       int    `json:"width"`
-	Height      int    `json:"height"`
-	ExtMetadata map[string]struct {
+	ThumbnailURL string `json:"thumburl"`
+	URL          string `json:"url"`
+	PageURL      string `json:"descriptionurl"`
+	MIME         string `json:"mime"`
+	SHA1         string `json:"sha1"`
+	Width        int    `json:"width"`
+	Height       int    `json:"height"`
+	ExtMetadata  map[string]struct {
 		Value string `json:"value"`
 	} `json:"extmetadata"`
 }
 
 type filePage struct {
+	Index     int         `json:"index"`
 	PageID    int         `json:"pageid"`
 	Title     string      `json:"title"`
 	Namespace int         `json:"ns"`
@@ -213,8 +232,8 @@ func acceptedCandidate(pin reviewedFile, item filePage) (source.Candidate, bool)
 		termsDigest(terms) != pin.TermsSHA256 {
 		return source.Candidate{}, false
 	}
-	original := canonicalURL(info.URL, "upload.wikimedia.org", "/wikipedia/commons/", true)
-	page := canonicalURL(info.PageURL, "commons.wikimedia.org", "/wiki/File:", false)
+	original := canonicalURL(info.URL, "upload.wikimedia.org", "/wikipedia/commons/", "original")
+	page := canonicalURL(info.PageURL, "commons.wikimedia.org", "/wiki/File:", "")
 	if original == "" || page == "" || pin.SHA256 == "" {
 		return source.Candidate{}, false
 	}
@@ -252,7 +271,7 @@ func termsDigest(terms []string) string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-func canonicalURL(raw, host, prefix string, original bool) string {
+func canonicalURL(raw, host, prefix, trackingContent string) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme != "https" || u.Host != host || u.User != nil ||
 		u.Fragment != "" || u.ForceQuery || !strings.HasPrefix(u.Path, prefix) || len(u.Path) == len(prefix) {
@@ -260,10 +279,10 @@ func canonicalURL(raw, host, prefix string, original bool) string {
 	}
 	if u.RawQuery != "" {
 		query, err := url.ParseQuery(u.RawQuery)
-		if !original || err != nil || len(query) != 3 ||
+		if trackingContent == "" || err != nil || len(query) != 3 ||
 			!slices.Equal(query["utm_source"], []string{"commons.wikimedia.org"}) ||
 			!slices.Equal(query["utm_campaign"], []string{"imageinfo"}) ||
-			!slices.Equal(query["utm_content"], []string{"original"}) {
+			!slices.Equal(query["utm_content"], []string{trackingContent}) {
 			return ""
 		}
 		u.RawQuery = ""
@@ -282,53 +301,11 @@ func (p *Provider) fetch(ctx context.Context, files []reviewedFile) (map[int]fil
 		ids[i] = strconv.Itoa(file.PageID)
 		wanted[file.PageID] = true
 	}
-	query := url.Values{
-		"action": {"query"}, "pageids": {strings.Join(ids, "|")},
-		"prop": {"imageinfo"}, "iiprop": {"url|size|mime|sha1|extmetadata"},
-		"iiextmetadatafilter": {strings.Join(termsFields, "|")}, "iiextmetadatalanguage": {"en"},
-		"format": {"json"}, "formatversion": {"2"}, "maxlag": {"5"},
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.endpoint+"?"+query.Encode(), nil)
+	body, err := p.api(ctx, url.Values{"pageids": {strings.Join(ids, "|")}})
 	if err != nil {
-		return nil, source.Failure("unavailable", "could not make a Commons metadata request")
+		return nil, err
 	}
-	req.Header.Set("User-Agent", source.UserAgent)
-	resp, err := p.client.Do(req)
-	if err != nil {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		return nil, source.Failure("unavailable", "could not reach Wikimedia Commons")
-	}
-	defer resp.Body.Close()
-	retryAfter := source.RetryAfter(resp.Header.Get("Retry-After"), time.Now())
-	if resp.StatusCode != http.StatusOK {
-		code := "unavailable"
-		if resp.StatusCode == http.StatusTooManyRequests {
-			code = "rate_limited"
-		}
-		return nil, &source.Error{Code: code, Message: "Commons metadata request failed", RetryAfterSeconds: retryAfter}
-	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, source.MaxResponseBytes+1))
-	if err != nil || len(raw) > source.MaxResponseBytes {
-		return nil, source.Failure("unavailable", "Commons metadata response exceeds limits or could not be read")
-	}
-	var body struct {
-		Error   *struct{ Code string }      `json:"error"`
-		Query   *struct{ Pages []filePage } `json:"query"`
-		Warning json.RawMessage             `json:"warnings"`
-	}
-	if err := json.Unmarshal(raw, &body); err != nil {
-		return nil, source.Failure("unavailable", "Commons returned invalid metadata")
-	}
-	if body.Error != nil {
-		code := "unavailable"
-		if body.Error.Code == "maxlag" || body.Error.Code == "ratelimited" {
-			code = "rate_limited"
-		}
-		return nil, &source.Error{Code: code, Message: "Commons API could not provide metadata", RetryAfterSeconds: retryAfter}
-	}
-	if body.Query == nil || body.Query.Pages == nil || len(body.Warning) != 0 {
+	if body.Query == nil || body.Query.Pages == nil {
 		return nil, source.Failure("unavailable", "Commons API returned incomplete metadata")
 	}
 	for _, item := range body.Query.Pages {
@@ -341,4 +318,64 @@ func (p *Provider) fetch(ctx context.Context, files []reviewedFile) (map[int]fil
 		items[item.PageID] = item
 	}
 	return items, nil
+}
+
+type apiResponse struct {
+	Error    *struct{ Code string }      `json:"error"`
+	Query    *struct{ Pages []filePage } `json:"query"`
+	Warning  json.RawMessage             `json:"warnings"`
+	Continue struct {
+		SearchOffset int `json:"gsroffset"`
+	} `json:"continue"`
+}
+
+func (p *Provider) api(ctx context.Context, query url.Values) (apiResponse, error) {
+	var body apiResponse
+	query.Set("action", "query")
+	query.Set("prop", "imageinfo")
+	query.Set("iiprop", "url|size|mime|sha1|extmetadata")
+	query.Set("iiextmetadatafilter", strings.Join(termsFields, "|")+"|License")
+	query.Set("iiextmetadatalanguage", "en")
+	query.Set("format", "json")
+	query.Set("formatversion", "2")
+	query.Set("maxlag", "5")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.endpoint+"?"+query.Encode(), nil)
+	if err != nil {
+		return body, source.Failure("unavailable", "could not make a Commons metadata request")
+	}
+	req.Header.Set("User-Agent", source.UserAgent)
+	resp, err := p.client.Do(req)
+	if err != nil {
+		if ctx.Err() != nil {
+			return body, ctx.Err()
+		}
+		return body, source.Failure("unavailable", "could not reach Wikimedia Commons")
+	}
+	defer resp.Body.Close()
+	retryAfter := source.RetryAfter(resp.Header.Get("Retry-After"), time.Now())
+	if resp.StatusCode != http.StatusOK {
+		code := "unavailable"
+		if resp.StatusCode == http.StatusTooManyRequests {
+			code = "rate_limited"
+		}
+		return body, &source.Error{Code: code, Message: "Commons metadata request failed", RetryAfterSeconds: retryAfter}
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, source.MaxResponseBytes+1))
+	if err != nil || len(raw) > source.MaxResponseBytes {
+		return body, source.Failure("unavailable", "Commons metadata response exceeds limits or could not be read")
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return body, source.Failure("unavailable", "Commons returned invalid metadata")
+	}
+	if body.Error != nil {
+		code := "unavailable"
+		if body.Error.Code == "maxlag" || body.Error.Code == "ratelimited" {
+			code = "rate_limited"
+		}
+		return body, &source.Error{Code: code, Message: "Commons API could not provide metadata", RetryAfterSeconds: retryAfter}
+	}
+	if len(body.Warning) != 0 {
+		return body, source.Failure("unavailable", "Commons API returned incomplete metadata")
+	}
+	return body, nil
 }

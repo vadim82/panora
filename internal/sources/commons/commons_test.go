@@ -144,3 +144,114 @@ func TestBundledCollectionPinsAreUniqueAndWellFormed(t *testing.T) {
 		seen[file.PageID] = true
 	}
 }
+
+func TestSearchApprovesOnlyMatchingUnchangedFiles(t *testing.T) {
+	filter := source.CommonsSearch{Query: "night sky", Category: "Landscape photographs", Format: "jpeg",
+		MinWidth: 6000, MinHeight: 6000, ExactWidth: 5120, ExactHeight: 2880, Offset: 8}
+	metadata := make(chan string, 1)
+	requested := make(chan string, 4)
+	p := providerFixture(t, func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("generator") != "" {
+			requested <- "search"
+			if q.Get("gsrsearch") != `night sky incategory:"Landscape photographs" filemime:"image/jpeg" filew:5120 fileh:2880` ||
+				q.Get("gsrnamespace") != "6" || q.Get("gsrlimit") != "8" || q.Get("gsroffset") != "8" {
+				t.Errorf("incorrect search filters: %v", q)
+			}
+			second := strings.Replace(fileFixture("2"), `{"pageid"`, `{"index":2,"pageid"`, 1)
+			first := strings.Replace(fileFixture("1"), `{"pageid"`, `{"index":1,"pageid"`, 1)
+			size := strings.Replace(fileFixture("3"), "5120", "5119", 1)
+			badCredit := strings.Replace(fileFixture("4"), "Requested credit", "<script>bad</script>", 1)
+			restricted := strings.Replace(fileFixture("5"), `"extmetadata":{`, `"extmetadata":{"Restrictions":{"value":"trademarked"},`, 1)
+			fmt.Fprintf(w, `{"continue":{"gsroffset":16},"query":{"pages":[%s,%s,%s,%s,%s,%s]}}`, second, first, first, size, badCredit, restricted)
+			return
+		}
+		requested <- q.Get("pageids")
+		file := fileFixture("1")
+		select {
+		case file = <-metadata:
+		default:
+		}
+		fmt.Fprintf(w, `{"query":{"pages":[%s,%s]}}`, file, fileFixture("2"))
+	})
+	ctx := t.Context()
+	search, err := p.Search(ctx, filter)
+	if err != nil || len(search.Results) != 2 || search.NextOffset != 16 || <-requested != "search" {
+		t.Fatalf("unexpected search page: %+v, %v", search, err)
+	}
+	first := search.Results[0]
+	if first.PageID != 1 || first.Width != 5120 || first.Height != 2880 || first.Author != "Requested credit" || !first.CommonsApproval.Valid() {
+		t.Fatalf("wrong review data: %+v", first)
+	}
+	filter.Offset = 0
+	settings := source.CommonsConfig{CommonsSearch: filter, Collection: source.CommonsLive}
+	config, err := json.Marshal(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Discover(ctx, source.DiscoverParams{Config: config, Limit: 8}); err == nil || len(requested) != 0 {
+		t.Fatal("unapproved search became eligible or triggered discovery")
+	}
+	settings.Approved = []source.CommonsApproval{first.CommonsApproval}
+	config, err = json.Marshal(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := p.Discover(ctx, source.DiscoverParams{Config: config, Limit: 8})
+	if err != nil || len(page.Candidates) != 1 || <-requested != "1" {
+		t.Fatalf("unexpected discovery result: %+v, %v", page, err)
+	}
+	candidate := page.Candidates[0]
+	params := source.ResolveParams{Config: config, ID: candidate.ID, Ref: candidate.Ref}
+	resolved, err := p.Resolve(ctx, params)
+	if err != nil || resolved.Content.RevisionSHA1 != first.Revision || <-requested != "1" {
+		t.Fatalf("unexpected resolved image: %+v, %v", resolved, err)
+	}
+	metadata <- strings.Replace(fileFixture("1"), "Requested credit", "Updated credit", 1)
+	if _, err := p.Resolve(ctx, params); err == nil || <-requested != "1" {
+		t.Fatal("an approval authorized changed Commons terms")
+	}
+	metadata <- strings.Replace(fileFixture("1"), first.Revision, strings.Repeat("b", 40), 1)
+	page, err = p.Discover(ctx, source.DiscoverParams{Config: config, Limit: 8})
+	if err != nil || len(page.Candidates) != 0 || <-requested != "1" {
+		t.Fatalf("changed revisions remained eligible: %+v, %v", page, err)
+	}
+}
+
+func TestSearchPublicDomainMetadata(t *testing.T) {
+	raw := strings.NewReplacer("CC BY-SA 4.0", "Public domain",
+		"https://creativecommons.org/licenses/by-sa/4.0", "",
+		`"AttributionRequired":{"value":"true"}`, `"AttributionRequired":{"value":"false"}`,
+		`"Copyrighted":{"value":"True"}`, `"Copyrighted":{"value":"False"},"License":{"value":"pd"}`).Replace(fileFixture("1"))
+	var item filePage
+	if err := json.Unmarshal([]byte(raw), &item); err != nil {
+		t.Fatal(err)
+	}
+	candidate, _, ok := liveCandidate(item)
+	if !ok || candidate.Attribution.LicenseName != "Public domain" || candidate.Attribution.LicenseURL != candidate.Attribution.PageURL {
+		t.Fatalf("missing Commons public domain details: %+v", candidate.Attribution)
+	}
+	delete(item.ImageInfo[0].ExtMetadata, "License")
+	if _, _, ok := liveCandidate(item); ok {
+		t.Fatal("public domain label without corroborating metadata was accepted")
+	}
+}
+
+func TestSearchHonorsRetryBeforeContactingCommonsAgain(t *testing.T) {
+	requested := make(chan struct{}, 2)
+	p := providerFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+		requested <- struct{}{}
+		w.Header().Set("Retry-After", "12")
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+	for range 2 {
+		_, err := p.Search(t.Context(), source.CommonsSearch{Category: "Night photography"})
+		var failure *source.Error
+		if !errors.As(err, &failure) || failure.Code != "rate_limited" {
+			t.Fatalf("expected throttled search: %v", err)
+		}
+	}
+	if len(requested) != 1 {
+		t.Fatalf("expected one upstream search, got %d", len(requested))
+	}
+}

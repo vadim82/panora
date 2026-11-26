@@ -3,10 +3,12 @@ package cache
 
 import (
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
@@ -308,22 +310,39 @@ func (c *Cache) Materialize(ctx context.Context, content source.Content, protect
 	}
 	defer os.Remove(f.Name())
 	defer f.Close()
-	hash := sha256.New()
+	digestHash := sha256.New()
 	limit := min(c.options.MaxBytes, MaxImageBytes)
-	n, err := io.Copy(io.MultiWriter(f, hash), io.LimitReader(contextReader{ctx, r}, limit+1))
+	var revision hash.Hash
+	sink := io.MultiWriter(f, digestHash)
+	if content.RevisionSHA1 != "" {
+		revision = sha1.New()
+		sink = io.MultiWriter(f, digestHash, revision)
+	}
+	n, err := io.Copy(sink, io.LimitReader(contextReader{ctx, r}, limit+1))
 	if err != nil {
 		return Result{}, &Error{Stage: "download", Code: "download_failed", Err: err}
 	}
 	if n > limit {
 		return Result{}, &Error{Stage: "decode", Code: "invalid_content", Err: fmt.Errorf("selected image exceeds the %d-byte limit", limit)}
 	}
-	digest := hex.EncodeToString(hash.Sum(nil))
-	if content.SHA256 != "" && digest != content.SHA256 {
+	digest := hex.EncodeToString(digestHash.Sum(nil))
+	if (content.SHA256 != "" && digest != content.SHA256) ||
+		(revision != nil && hex.EncodeToString(revision.Sum(nil)) != content.RevisionSHA1) {
 		return Result{}, &Error{Stage: "decode", Code: "invalid_content", Err: fmt.Errorf("selected original differs from its expected digest")}
 	}
 	pixels, format, err := decodeImage(ctx, f, n, nil)
 	if err != nil {
 		return Result{}, &Error{Stage: "decode", Code: "invalid_content", Err: err}
+	}
+	if content.RevisionSHA1 != "" {
+		if content.MIMEType != "image/"+format {
+			return Result{}, &Error{Stage: "decode", Code: "invalid_content", Err: fmt.Errorf("selected original differs from its expected format")}
+		}
+		if format == "png" {
+			if err := verifyStillPNG(ctx, f, n); err != nil {
+				return Result{}, &Error{Stage: "decode", Code: "invalid_content", Err: err}
+			}
+		}
 	}
 	ext := imageExtension(format)
 	bounds := pixels.Bounds()

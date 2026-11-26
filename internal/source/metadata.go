@@ -59,14 +59,23 @@ func validateMetadata(d *Dimensions, a *Attribution, requirements []string) erro
 	return nil
 }
 
+func validHexDigest(value string, wantLength int) bool {
+	if len(value) != wantLength || strings.ToLower(value) != value {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
+}
+
 func validateContent(c Content) error {
 	if c.MediaKind != "image" || c.MIMEType != "" && c.MIMEType != "image/jpeg" && c.MIMEType != "image/png" {
 		return fmt.Errorf("unsupported provider media")
 	}
-	if c.SHA256 != "" {
-		if _, err := hex.DecodeString(c.SHA256); len(c.SHA256) != 64 || strings.ToLower(c.SHA256) != c.SHA256 || err != nil {
-			return fmt.Errorf("invalid original SHA-256 digest")
-		}
+	if c.SHA256 != "" && !validHexDigest(c.SHA256, 64) {
+		return fmt.Errorf("invalid original SHA-256 digest")
+	}
+	if c.RevisionSHA1 != "" && (c.MIMEType == "" || !validHexDigest(c.RevisionSHA1, 40)) {
+		return fmt.Errorf("invalid original revision SHA-1")
 	}
 	switch c.Kind {
 	case "local":

@@ -208,7 +208,11 @@ an absolute `path` and no `url`; HTTPS content has a `url` and no `path`. Option
 Candidate content may be omitted until `resolve`; resolved content is required.
 Optional `sha256` is a 64-character lowercase hex digest of the original.
 A digest supplied during discovery must match the resolved value. The shared
-cache checks the digest before publishing downloaded or copied bytes.
+cache checks the digest before publishing downloaded or copied bytes. The built-in
+Commons provider can also verify an upload against the optional lowercase
+40-character `revision_sha1` published by Commons when `mime_type` is declared.
+SHA-256 remains the cache
+identity.
 
 Dimensions are optional on candidates and resolved results. Omit them or use
 null when unknown. If present, both width and height must be positive integers.

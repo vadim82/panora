@@ -2,6 +2,7 @@ package playback
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -59,6 +60,12 @@ func enabledHistoryOrigin(identity catalog.Identity, candidate source.Candidate,
 		}
 		for _, input := range p.Inputs {
 			if input.ID == identity.InputID && input.enabled() {
+				if p.ID == source.CommonsID {
+					saved, err := source.DecodeCommonsConfig(json.RawMessage(input.Values))
+					if err != nil || !saved.Allows(candidate) {
+						return fmt.Errorf("Commons image is outside the reviewed source")
+					}
+				}
 				return nil
 			}
 		}
@@ -175,6 +182,10 @@ func (s *Service) materializeImage(ctx context.Context, choice playbackChoice, c
 			s.clearProviderRetry(choice.identity.ProviderID, "provider_download")
 		}
 	}
+	if choice.identity.ProviderID == source.CommonsID && candidate.Content != nil && candidate.Content.RevisionSHA1 != "" &&
+		(candidate.Dimensions == nil || result.Width != candidate.Dimensions.Width || result.Height != candidate.Dimensions.Height) {
+		return choice, atStage("filter", fmt.Errorf("decoded Commons image differs from its reviewed dimensions"))
+	}
 	if themeOrigin != nil && result.Hash != themeOrigin.hash {
 		return choice, fmt.Errorf("Omarchy theme still changed during playback selection")
 	}
@@ -233,8 +244,9 @@ func (s *Service) resolveOriginal(ctx context.Context, id catalog.Identity, cand
 			return source.Content{}, fmt.Errorf("resolved provider original differs from discovered image")
 		}
 	}
-	if candidate.Content != nil && candidate.Content.SHA256 != "" && resolved.Content.SHA256 != candidate.Content.SHA256 {
-		return source.Content{}, fmt.Errorf("resolved original differs from the expected digest")
+	if candidate.Content != nil && (candidate.Content.SHA256 != "" && resolved.Content.SHA256 != candidate.Content.SHA256 ||
+		candidate.Content.RevisionSHA1 != "" && (resolved.Content.RevisionSHA1 != candidate.Content.RevisionSHA1 || resolved.Content.MIMEType != candidate.Content.MIMEType)) {
+		return source.Content{}, fmt.Errorf("resolved original differs from the expected revision")
 	}
 	return resolved.Content, nil
 }

@@ -22,7 +22,7 @@ func Handler(service Service) http.Handler {
 			handleCurrentExclusion(ctx, w, r, service)
 			return
 		}
-		if handleNavigation(ctx, w, r, service) || handleOmarchyTheme(ctx, w, r, service) || handleRulePreview(ctx, w, r, service) || handleCacheStatus(ctx, w, r, service) || handlePreview(ctx, w, r, service) || handleCapabilities(ctx, w, r, service) || handleHistory(ctx, w, r, service) || handleConfiguration(ctx, w, r, service) {
+		if handleCommonsSearch(ctx, w, r, service) || handleNavigation(ctx, w, r, service) || handleOmarchyTheme(ctx, w, r, service) || handleRulePreview(ctx, w, r, service) || handleCacheStatus(ctx, w, r, service) || handlePreview(ctx, w, r, service) || handleCapabilities(ctx, w, r, service) || handleHistory(ctx, w, r, service) || handleConfiguration(ctx, w, r, service) {
 			return
 		}
 		if r.URL.Path == "/v1/exclusions" {

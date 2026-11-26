@@ -8,7 +8,7 @@ and rotation.
 | --- | --- |
 | [Local files](local.md) | Folders containing JPEG, PNG, or static WebP files |
 | [Wallhaven](wallhaven.md) | Named SFW searches |
-| [Wikimedia Commons](commons.md) | Reviewed Featured landscapes collection |
+| [Wikimedia Commons](commons.md) | Live file search with per-file approval and a reviewed Featured landscapes collection |
 | [Omarchy theme](omarchy.md) | The active theme’s native still backgrounds |
 
 ## Provider settings

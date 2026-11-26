@@ -335,6 +335,11 @@ func ParseConfig(data []byte) (Config, *RatioRule, error) {
 					return config, nil, fmt.Errorf("source IDs must be nonblank and globally unique")
 				}
 				inputIDs[input.ID] = true
+				if p.ID == source.CommonsID {
+					if _, err := source.DecodeCommonsConfig(json.RawMessage(input.Values)); err != nil {
+						return config, nil, fmt.Errorf("Commons input %q: %w", input.ID, err)
+					}
+				}
 				if err := input.validate(); err != nil {
 					return config, nil, fmt.Errorf("provider %q input %q: %w", p.ID, input.ID, err)
 				}

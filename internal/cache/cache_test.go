@@ -3,6 +3,7 @@ package cache
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
@@ -488,5 +489,47 @@ func TestMaterializeRequiresExpectedRevisionBytes(t *testing.T) {
 	entries, err := c.entries()
 	if err != nil || len(entries) != 1 || entries[0].path != first.Path {
 		t.Fatalf("rejected replacement changed cache: %v, %v", entries, err)
+	}
+}
+
+func TestMaterializeMatchesCommonsUploadRevisionAndFormat(t *testing.T) {
+	c := newCache(t, 1, 0)
+	approved, data := fixture(t, 10)
+	digest := sha1.Sum(data)
+	approved.RevisionSHA1 = hex.EncodeToString(digest[:])
+	approved.MIMEType = "image/png"
+	result, err := c.Materialize(t.Context(), approved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testInputs := []source.Content{approved, approved}
+	testInputs[0].RevisionSHA1 = strings.Repeat("a", 40)
+	testInputs[1].MIMEType = "image/jpeg"
+	for _, content := range testInputs {
+		if _, err := c.Materialize(t.Context(), content); err == nil {
+			t.Fatalf("accepted inconsistent upload proof: %+v", content)
+		}
+	}
+	// Insert a valid animation control chunk after IHDR. The PNG decoder
+	// ignores this chunk and would otherwise accept the still fallback.
+	chunk := make([]byte, 20)
+	binary.BigEndian.PutUint32(chunk, 8)
+	copy(chunk[4:], "acTL")
+	binary.BigEndian.PutUint32(chunk[8:], 1)
+	binary.BigEndian.PutUint32(chunk[16:], crc32.ChecksumIEEE(chunk[4:16]))
+	animated := append(append(append([]byte(nil), data[:33]...), chunk...), data[33:]...)
+	if err := os.WriteFile(approved.Path, animated, 0600); err != nil {
+		t.Fatal(err)
+	}
+	animatedDigest := sha1.Sum(animated)
+	approved.RevisionSHA1 = hex.EncodeToString(animatedDigest[:])
+	_, err = c.Materialize(t.Context(), approved)
+	cause := errors.Unwrap(err)
+	if cause == nil || !strings.Contains(cause.Error(), "animated PNG") {
+		t.Fatalf("accepted animation control chunk: %v", cause)
+	}
+	entries, err := c.entries()
+	if err != nil || len(entries) != 1 || entries[0].path != result.Path {
+		t.Fatalf("rejected upload changed cache: %v, %v", entries, err)
 	}
 }

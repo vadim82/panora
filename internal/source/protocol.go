@@ -93,12 +93,13 @@ type DiscoverParams struct {
 }
 
 type Content struct {
-	MediaKind string `json:"media_kind"`
-	Kind      string `json:"kind"`
-	Path      string `json:"path,omitempty"`
-	URL       string `json:"url,omitempty"`
-	MIMEType  string `json:"mime_type,omitempty"`
-	SHA256    string `json:"sha256,omitempty"`
+	MediaKind    string `json:"media_kind"`
+	Kind         string `json:"kind"`
+	Path         string `json:"path,omitempty"`
+	URL          string `json:"url,omitempty"`
+	MIMEType     string `json:"mime_type,omitempty"`
+	SHA256       string `json:"sha256,omitempty"`
+	RevisionSHA1 string `json:"revision_sha1,omitempty"`
 }
 
 // Content is an optional already-known location. Ref remains opaque to the host.
