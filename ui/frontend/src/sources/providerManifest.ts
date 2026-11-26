@@ -1,4 +1,6 @@
-export type ProviderValue = string | number | boolean | string[];
+import type { CommonsApproval } from './commonsSearch';
+
+export type ProviderValue = string | number | boolean | string[] | CommonsApproval[];
 export type ProviderValues = Record<string, ProviderValue | undefined>;
 export type EditorOption = { value: string; label: string };
 

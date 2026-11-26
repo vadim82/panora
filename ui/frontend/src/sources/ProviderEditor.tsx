@@ -4,6 +4,8 @@ import { bridge, usePanora } from '../client';
 import { Button, Field, FormActions, Notice, TextInput } from '../components/ui';
 import type { ConfiguredInput, ProviderEditorDescription, ProviderInputEdit } from '../types';
 import type { EditorCallbacks } from './editorCallbacks';
+import { CommonsSearch } from './CommonsSearch';
+import { commonsApprovals, commonsID, commonsSearchRequest } from './commonsSearch';
 import { ProviderField, ProviderFields } from './ProviderFields';
 import { fieldError, fieldVisible, manifestDefaults, manifestFields } from './providerManifest';
 import type { EditorManifest, ProviderValues } from './providerManifest';
@@ -22,6 +24,10 @@ type Props = EditorCallbacks & {
   mutable: boolean;
 };
 
+const commonsFeaturedName = 'Featured landscapes';
+const commonsSearchName = 'Wikimedia Commons search';
+const commonsName = (collection: unknown) =>
+  collection === 'search' ? commonsSearchName : commonsFeaturedName;
 const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 const changedValues = (draft: ProviderValues, saved: ProviderValues) =>
   Object.keys({ ...saved, ...draft }).some((key) => !same(draft[key], saved[key]));
@@ -58,13 +64,15 @@ function ManifestEditor({
   const ui = usePanora();
   const config = ui.configuration!;
   const defaults = useMemo(() => manifestDefaults(manifest), [manifest]);
-  const fields = useMemo(() => manifestFields(manifest), [manifest]);
+  const isCommons = providerID === commonsID;
+  const fields = useMemo(
+    () => manifestFields(manifest).filter((field) => !isCommons || field.key === 'collection'),
+    [isCommons, manifest],
+  );
   const [editor, setEditor] = useState(() => {
     const saved = { ...defaults, ...input?.values };
     const name =
-      input?.name ||
-      (providerID === 'wikimedia_commons' ? 'Featured landscapes' : description?.name) ||
-      '';
+      input?.name || (isCommons ? commonsName(saved.collection) : description?.name) || '';
     const rules = sourceRuleDraft(input || { effective_rules: config.rules }, config.rules);
     return {
       revision: config.revision,
@@ -78,6 +86,8 @@ function ManifestEditor({
     };
   });
   const { values, rules, name } = editor;
+  const customCommons = isCommons && values.collection === 'search';
+  const approved = customCommons ? commonsApprovals(values) : [];
   const [enabled, setEnabled] = useState(true);
   const [suggestions, setSuggestions] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
@@ -169,7 +179,16 @@ function ManifestEditor({
       requestAnimationFrame(() => document.getElementById(target)?.focus());
       return;
     }
-    const cleaned = { ...values };
+    let cleaned = { ...values };
+    if (customCommons) {
+      const { request, error } = commonsSearchRequest(values);
+      if (error || !approved.length) {
+        setNotice(error || 'Search Commons and approve at least one file.');
+        requestAnimationFrame(() => document.getElementById('commons-query')?.focus());
+        return;
+      }
+      cleaned = { collection: 'search', ...request, approved };
+    } else if (isCommons) cleaned = { collection: values.collection };
     for (const field of fields) {
       if (field.control === 'integer') {
         const number = cleaned[field.key];
@@ -262,7 +281,11 @@ function ManifestEditor({
           {manifest.groups.map((group) => (
             <ProviderFields
               key={group.id}
-              group={group}
+              group={
+                isCommons
+                  ? { ...group, fields: group.fields.filter((field) => field.key === 'collection') }
+                  : group
+              }
               values={values}
               render={(field) => (
                 <ProviderField
@@ -279,6 +302,13 @@ function ManifestEditor({
                   onChange={(value) =>
                     setEditor((current) => ({
                       ...current,
+                      name:
+                        isCommons &&
+                        field.key === 'collection' &&
+                        !input &&
+                        [commonsFeaturedName, commonsSearchName].includes(current.name)
+                          ? commonsName(value)
+                          : current.name,
                       values: {
                         ...current.values,
                         [field.key]:
@@ -290,6 +320,18 @@ function ManifestEditor({
               )}
             />
           ))}
+          {customCommons && (
+            <CommonsSearch
+              values={values}
+              disabled={!mutable || working}
+              onChange={(patch) =>
+                setEditor((current) => ({
+                  ...current,
+                  values: { ...current.values, ...patch },
+                }))
+              }
+            />
+          )}
           <SourceRules
             prefix="provider-rule"
             provider={providerID}
@@ -328,7 +370,9 @@ function ManifestEditor({
             type="submit"
             variant="primary"
             pending={working}
-            disabled={!mutable || Boolean(existing && !dirty)}
+            disabled={
+              !mutable || Boolean(existing && !dirty) || (customCommons && !approved.length)
+            }
           >
             {existing ? 'Save' : editor.missing ? 'Save as new source' : 'Add source'}
           </Button>

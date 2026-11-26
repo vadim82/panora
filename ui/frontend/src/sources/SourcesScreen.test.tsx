@@ -56,50 +56,58 @@ async function edit(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
   await detail(user, name);
 }
 
-describe('source editors', () => {
-  it('explains Commons discovery and saves the curated collection only after Add source', async () => {
-    const api = installBridge();
-    const user = userEvent.setup();
-    const commons: Configuration = {
-      ...structuredClone(configuration),
-      provider_editors: [
-        {
-          id: 'wikimedia_commons',
-          name: 'Wikimedia Commons',
-          editor: {
-            version: 1,
-            groups: [
+const commonsConfiguration: Configuration = {
+  ...structuredClone(configuration),
+  provider_editors: [
+    {
+      id: 'wikimedia_commons',
+      name: 'Wikimedia Commons',
+      editor: {
+        version: 1,
+        groups: [
+          {
+            id: 'collection',
+            fields: [
               {
-                id: 'collection',
-                fields: [
-                  {
-                    key: 'collection',
-                    label: 'Collection',
-                    control: 'select',
-                    required: true,
-                    default: 'featured-landscapes',
-                    help: 'Panora contacts Wikimedia Commons to find and download reviewed landscape wallpapers.',
-                    options: [{ label: 'Featured landscapes', value: 'featured-landscapes' }],
-                  },
+                key: 'collection',
+                label: 'Collection',
+                control: 'select',
+                required: true,
+                default: 'search',
+                help: 'Panora contacts Wikimedia Commons to find and download reviewed landscape wallpapers.',
+                options: [
+                  { label: 'Featured landscapes', value: 'featured-landscapes' },
+                  { label: 'Search Commons', value: 'search' },
                 ],
               },
             ],
           },
-        },
-      ],
-    };
-    api.Configuration.mockResolvedValue({ configuration: commons });
+        ],
+      },
+    },
+  ],
+};
+
+describe('source editors', () => {
+  it('explains Commons discovery and saves the curated collection only after Add source', async () => {
+    const api = installBridge();
+    const user = userEvent.setup();
+    api.Configuration.mockResolvedValue({ configuration: commonsConfiguration });
     await ready();
     await add(user, 'Wikimedia Commons');
-    expect(screen.getByLabelText('Collection')).toHaveValue('featured-landscapes');
+    expect(screen.getByLabelText('Collection')).toHaveValue('search');
+    expect(screen.getByLabelText('Name')).toHaveValue('Wikimedia Commons search');
+    await user.selectOptions(screen.getByLabelText('Collection'), 'featured-landscapes');
     expect(screen.getByLabelText('Name')).toHaveValue('Featured landscapes');
     expect(screen.getByText(/contacts Wikimedia Commons/)).toBeVisible();
     expect(screen.getByRole('group', { name: 'Image rules' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(api.AddProviderInput).not.toHaveBeenCalled();
     expect(api.SuggestProviderInput).not.toHaveBeenCalled();
+    expect(api.SearchCommons).not.toHaveBeenCalled();
     await add(user, 'Wikimedia Commons');
     const editor = within(screen.getByRole('form', { name: 'Add Wikimedia Commons' }));
+    await user.selectOptions(editor.getByLabelText('Collection'), 'featured-landscapes');
     await user.click(editor.getByRole('button', { name: 'Add source' }));
     expect(api.AddProviderInput).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -109,6 +117,104 @@ describe('source editors', () => {
         values: { collection: 'featured-landscapes' },
       }),
     );
+  });
+  it('searches Commons only on demand and saves only explicitly approved file revisions', async () => {
+    const api = installBridge();
+    const user = userEvent.setup();
+    const approval = { page_id: 5, revision: 'a'.repeat(40), terms_digest: 'b'.repeat(64) };
+    const result = {
+      ...approval,
+      title: 'Forest waterfall',
+      width: 3840,
+      height: 2160,
+      author: 'A photographer',
+      license_name: 'CC BY 4.0',
+      license_url: 'https://creativecommons.org/licenses/by/4.0/',
+      page_url: 'https://commons.wikimedia.org/wiki/File:Forest_waterfall.jpg',
+    };
+    api.Configuration.mockResolvedValue({ configuration: commonsConfiguration });
+    api.SearchCommons.mockResolvedValueOnce({
+      commons_search: {
+        results: [result, { ...result, title: 'Unselected forest', page_id: 9 }],
+        next_offset: 2,
+      },
+    }).mockResolvedValueOnce({ commons_search: { results: [] } });
+    await ready();
+    await add(user, 'Wikimedia Commons');
+    const editor = within(screen.getByRole('form', { name: 'Add Wikimedia Commons' }));
+    await user.selectOptions(editor.getByLabelText('Collection'), 'search');
+    await user.type(editor.getByLabelText('Search terms'), 'waterfall');
+    await user.type(editor.getByLabelText('Category'), 'Forests');
+    await user.selectOptions(editor.getByLabelText('Search resolution'), 'exact');
+    await user.type(editor.getByLabelText('Exact width'), '3840');
+    await user.type(editor.getByLabelText('Exact height'), '2160');
+    await user.selectOptions(editor.getByLabelText('File format'), 'jpeg');
+    expect(api.SearchCommons).not.toHaveBeenCalled();
+    expect(editor.getByRole('button', { name: 'Add source' })).toBeDisabled();
+    const criteria = {
+      query: 'waterfall',
+      category: 'Forests',
+      exact_width: 3840,
+      exact_height: 2160,
+      format: 'jpeg',
+    };
+    await user.click(editor.getByRole('button', { name: 'Search Commons' }));
+    const checkbox = await editor.findByRole('checkbox', { name: 'Approve Forest waterfall' });
+    expect(checkbox).not.toBeChecked();
+    expect(api.SearchCommons).toHaveBeenCalledExactlyOnceWith(criteria);
+    checkbox.focus();
+    await user.keyboard(' ');
+    expect(checkbox).toBeChecked();
+    expect(api.AddProviderInput).not.toHaveBeenCalled();
+    await user.click(editor.getByRole('button', { name: 'Next results' }));
+    expect(await editor.findByText(/No files on this page/)).toBeVisible();
+    expect(api.SearchCommons).toHaveBeenLastCalledWith({ ...criteria, offset: 2 });
+    await user.click(editor.getByRole('button', { name: 'Add source' }));
+    expect(api.AddProviderInput).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        provider_id: 'wikimedia_commons',
+        values: { collection: 'search', ...criteria, approved: [approval] },
+      }),
+    );
+  });
+
+  it('clears Commons approvals when the reviewed criteria change', async () => {
+    const api = installBridge();
+    const user = userEvent.setup();
+    api.Configuration.mockResolvedValue({ configuration: commonsConfiguration });
+    api.SearchCommons.mockResolvedValueOnce({
+      commons_search: {
+        results: [
+          {
+            page_id: 5,
+            revision: 'a'.repeat(40),
+            terms_digest: 'b'.repeat(64),
+            title: 'Forest waterfall',
+            width: 3840,
+            height: 2160,
+            author: 'Photographer',
+            license_name: 'CC BY 4.0',
+            license_url: '',
+            page_url: '',
+          },
+        ],
+      },
+    });
+    await ready();
+    await add(user, 'Wikimedia Commons');
+    const editor = within(screen.getByRole('form', { name: 'Add Wikimedia Commons' }));
+    await user.selectOptions(editor.getByLabelText('Collection'), 'search');
+    await user.type(editor.getByLabelText('Search terms'), 'forest');
+    await user.click(editor.getByRole('button', { name: 'Search Commons' }));
+    await user.click(await editor.findByRole('checkbox', { name: 'Approve Forest waterfall' }));
+    expect(editor.getByRole('button', { name: 'Add source' })).toBeEnabled();
+    await user.type(editor.getByLabelText('Minimum width'), '1920');
+    expect(editor.getByRole('button', { name: 'Add source' })).toBeDisabled();
+    expect(
+      editor.queryByRole('checkbox', { name: 'Approve Forest waterfall' }),
+    ).not.toBeInTheDocument();
+    expect(api.SearchCommons).toHaveBeenCalledTimes(1);
+    expect(api.AddProviderInput).not.toHaveBeenCalled();
   });
   it('shows saved counts and debounced draft matches together in Source status', async () => {
     const api = installBridge();

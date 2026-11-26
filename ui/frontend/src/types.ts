@@ -1,3 +1,4 @@
+import type { CommonsSearchPage, CommonsSearchRequest } from './sources/commonsSearch';
 import type { EditorManifest, ProviderValues } from './sources/providerManifest';
 
 export type Page = 'now' | 'providers' | 'history' | 'settings' | 'about';
@@ -324,6 +325,7 @@ export interface Result {
   code?: string;
   configuration?: Configuration;
   status?: Status;
+  commons_search?: CommonsSearchPage;
   connected?: boolean;
   current?: HistoryEntry;
   capabilities?: Capabilities;
@@ -432,6 +434,7 @@ export interface Bridge {
     page: number,
     limit: number,
   ): Promise<{ theme?: OmarchyThemePreview; error?: string }>;
+  SearchCommons(edit: CommonsSearchRequest): Promise<Result>;
   ThemePalette(): Promise<{ colors?: string[]; error?: string }>;
   RulePreview(edit: {
     revision: string;

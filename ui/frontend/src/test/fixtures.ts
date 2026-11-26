@@ -97,6 +97,9 @@ export function installBridge() {
     WindowPalette: vi.fn(async () => null),
     EditOmarchyTheme: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
     OmarchyThemePreview: vi.fn(async () => ({})),
+    SearchCommons: vi.fn<Bridge['SearchCommons']>(async () => ({
+      commons_search: { results: [] },
+    })),
     ThemePalette: vi.fn(async () => ({ colors: ['#0066cc', '#66cccc', '#424153'] })),
     CountSearchCandidates: vi.fn(async () => ({
       counts: {

@@ -2,7 +2,6 @@ import type {
   Bridge,
   Configuration,
   ConfiguredFolder,
-  ConfiguredSearch,
   Entry,
   Exclusion,
   FolderEdit,
@@ -102,6 +101,36 @@ export function installFixture(
       },
     },
   ];
+  if (scenario === 'commons') {
+    config.provider_editors = [
+      {
+        id: 'wikimedia_commons',
+        name: 'Wikimedia Commons',
+        editor: {
+          version: 1,
+          groups: [
+            {
+              id: 'collection',
+              fields: [
+                {
+                  key: 'collection',
+                  label: 'Collection',
+                  control: 'select',
+                  default: 'search',
+                  options: [
+                    { value: 'featured-landscapes', label: 'Featured landscapes' },
+                    { value: 'search', label: 'Search Commons' },
+                  ],
+                  help: 'Panora contacts Wikimedia Commons to find and download wallpapers.',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ];
+    config.inputs = [];
+  }
   const state: Snapshot = {
     connected: true,
     status: {
@@ -303,7 +332,7 @@ export function installFixture(
       ? { code: 'invalid_settings', error: 'Choose source rules or inheritance, not both.' }
       : null;
   const applyRules = (
-    source: ConfiguredFolder | ConfiguredSearch,
+    source: Pick<ConfiguredFolder, 'image_rules'>,
     edit: { image_rules?: SourceImageRules; inherit_rules?: boolean },
   ) => {
     if (edit.inherit_rules) source.image_rules = null;
@@ -355,6 +384,15 @@ export function installFixture(
         })(),
       );
     return imageData.get(url)!;
+  }
+  async function fixtureThumbnail(url: string) {
+    const pixels = await createImageBitmap(await (await fetch(url)).blob());
+    const canvas = document.createElement('canvas');
+    canvas.width = 240;
+    canvas.height = Math.round((canvas.width * pixels.height) / pixels.width);
+    canvas.getContext('2d')?.drawImage(pixels, 0, 0, canvas.width, canvas.height);
+    pixels.close();
+    return canvas.toDataURL('image/jpeg', 0.8);
   }
   const client: Bridge = {
     BuildIdentity: async () => ({ development: true }),
@@ -461,6 +499,36 @@ export function installFixture(
     WindowPalette: async () => null,
     EditOmarchyTheme: async () => ({ error: 'Connect to a native Omarchy session.' }),
     OmarchyThemePreview: async () => ({}),
+    SearchCommons: async (edit) => {
+      if (scenario !== 'commons') return { commons_search: { results: [] } };
+      const photos = edit.offset
+        ? ([['Canyon after rain', right, 151]] as const)
+        : ([
+            ['Sandstone at sunrise', left, 101],
+            ['Canyon overlook', center, 102],
+            ['Rock formations at dusk', right, 103],
+          ] as const);
+      return {
+        commons_search: {
+          next_offset: edit.offset ? undefined : photos.length,
+          results: await Promise.all(
+            photos.map(async ([title, image, id]) => ({
+              title,
+              page_id: id,
+              revision: id.toString(16).padStart(40, '0'),
+              terms_digest: id.toString(16).padStart(64, '0'),
+              width: edit.exact_width || Math.max(edit.min_width || 0, 3840),
+              height: edit.exact_height || Math.max(edit.min_height || 0, 2160),
+              author: 'Panora preview artwork',
+              license_name: 'MIT',
+              license_url: 'https://opensource.org/license/mit',
+              page_url: '',
+              thumbnail: await fixtureThumbnail(image),
+            })),
+          ),
+        },
+      };
+    },
     ThemePalette: async () => ({ colors: ['#0066cc', '#66cccc', '#424153'] }),
     UpdateConfiguration: async (edit) => {
       const conflict = checkRevision(edit.revision);
@@ -551,15 +619,40 @@ export function installFixture(
       } else return { code: 'search_not_found', error: 'This search is no longer saved.' };
       return saved();
     },
-    AddProviderInput: async () => ({
-      error: 'No external providers are installed in this preview.',
-    }),
-    UpdateProviderInput: async () => ({
-      error: 'No external providers are installed in this preview.',
-    }),
-    RemoveProviderInput: async () => ({
-      error: 'No external providers are installed in this preview.',
-    }),
+    AddProviderInput: async (edit) => {
+      if (scenario !== 'commons' || edit.provider_id !== 'wikimedia_commons')
+        return { error: 'No external providers are installed in this preview.' };
+      const conflict = checkRevision(edit.revision);
+      if (conflict) return conflict;
+      const enabled = edit.enabled ?? true;
+      config.inputs!.push({
+        id: 'preview-commons-' + ++sequence,
+        provider_id: edit.provider_id,
+        name: edit.name || 'Wikimedia Commons',
+        enabled,
+        input_enabled: enabled,
+        values: edit.values || {},
+        image_rules: edit.image_rules,
+      });
+      return saved();
+    },
+    UpdateProviderInput: async (edit) => {
+      const conflict = checkRevision(edit.revision);
+      if (conflict) return conflict;
+      const input = config.inputs?.find(({ id }) => id === edit.id);
+      if (!input) return { error: 'The source could not be found in this preview.' };
+      if (edit.name !== undefined) input.name = edit.name;
+      if (edit.values !== undefined) input.values = edit.values;
+      if (edit.enabled !== undefined) input.enabled = input.input_enabled = edit.enabled;
+      applyRules(input, edit);
+      return saved();
+    },
+    RemoveProviderInput: async (edit) => {
+      const conflict = checkRevision(edit.revision);
+      if (conflict) return conflict;
+      config.inputs = config.inputs?.filter(({ id }) => id !== edit.id);
+      return saved();
+    },
     SuggestProviderInput: async () => ({ values: [] }),
     RemoveSearch: async (edit) => {
       const conflict = checkRevision(edit.revision);

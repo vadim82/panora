@@ -495,7 +495,7 @@ export function SourcesScreen() {
         {!shown.length && config && (
           <p className="source-empty">
             {!sources.length
-              ? 'No saved sources. Add a folder or a Wallhaven search.'
+              ? 'No saved sources. Add a source to start browsing wallpapers.'
               : 'No sources match this search and filter.'}
           </p>
         )}
