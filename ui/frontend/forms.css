@@ -475,11 +475,15 @@ html:has(.ui-confirm-dialog) {
   align-items: center;
 }
 
-/* Use the webview's scheme-aware arrow with the active Omarchy palette. */
+/* Draw the arrow with the active palette without invoking the GTK control skin. */
 [data-window-palette='omarchy'] :is(.settings-panel, .folder-test, .theme-rules) select {
-  appearance: auto;
-  padding-inline-end: 10px;
-  background-image: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    right 14px center,
+    right 9px center;
+  background-size: 5px 5px;
 }
 
 [data-window-palette='omarchy'] :is(input, textarea)::placeholder {
