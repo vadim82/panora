@@ -406,6 +406,16 @@ export interface BuildIdentity {
   revision?: string;
   development: boolean;
 }
+export interface WindowPalette {
+  background: string;
+  foreground: string;
+  accent: string;
+  muted: string;
+  selection: string;
+  red: string;
+  yellow: string;
+}
+
 export interface Bridge {
   BuildIdentity(): Promise<BuildIdentity>;
   TakeAboutRequest(): Promise<boolean>;
@@ -414,7 +424,7 @@ export interface Bridge {
   OpenConfiguration(): Promise<OpenResult>;
   Capabilities(): Promise<Result>;
   CacheStatus(): Promise<Result>;
-  WindowAccent(): Promise<string>;
+  WindowPalette(): Promise<WindowPalette | null>;
   EditOmarchyTheme(action: 'add' | 'update' | 'remove', edit: OmarchyThemeEdit): Promise<Result>;
   OmarchyThemePreview(
     page: number,

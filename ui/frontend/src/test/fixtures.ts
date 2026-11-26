@@ -94,7 +94,7 @@ export function installBridge() {
         usage: { state: 'known', images: 1, bytes: 100, protected_images: 1, protected_bytes: 100 },
       },
     })),
-    WindowAccent: vi.fn(async () => ''),
+    WindowPalette: vi.fn(async () => null),
     EditOmarchyTheme: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
     OmarchyThemePreview: vi.fn(async () => ({})),
     ThemePalette: vi.fn(async () => ({ colors: ['#0066cc', '#66cccc', '#424153'] })),

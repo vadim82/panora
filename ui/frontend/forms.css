@@ -322,7 +322,7 @@ html:has(.ui-confirm-dialog) {
 .app-header nav button[aria-current] {
   color: var(--ink);
   background: transparent;
-  border-bottom-color: var(--window-primary, var(--accent));
+  border-bottom-color: var(--accent);
   box-shadow: none;
 }
 .app-header .header-actions {
@@ -473,4 +473,16 @@ html:has(.ui-confirm-dialog) {
 
 .about-panel .form-actions {
   align-items: center;
+}
+
+/* Use the webview's scheme-aware arrow with the active Omarchy palette. */
+[data-window-palette='omarchy'] :is(.settings-panel, .folder-test, .theme-rules) select {
+  appearance: auto;
+  padding-inline-end: 10px;
+  background-image: none;
+}
+
+[data-window-palette='omarchy'] :is(input, textarea)::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
