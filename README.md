@@ -79,13 +79,12 @@ as you visit ordinary Desktops in Spaces.
 
 ### Install with Homebrew
 
-Tap and trust the formula once, then install Panora.
+Install Panora by its full formula name to trust only Panora from this tap.
 
 ```sh
 brew tap vadim82/panora https://github.com/vadim82/panora.git
-brew trust --formula vadim82/panora/panora
-brew install panora
-open "$(brew --prefix panora)/libexec/Panora.app"
+brew install vadim82/panora/panora
+open "$(brew --prefix vadim82/panora/panora)/libexec/Panora.app"
 ```
 
 See the [macOS user guide](docs/macos.md#install-with-homebrew-on-apple-silicon)
