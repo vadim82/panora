@@ -57,6 +57,59 @@ async function edit(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
 }
 
 describe('source editors', () => {
+  it('explains Commons discovery and saves the curated collection only after Add source', async () => {
+    const api = installBridge();
+    const user = userEvent.setup();
+    const commons: Configuration = {
+      ...structuredClone(configuration),
+      provider_editors: [
+        {
+          id: 'wikimedia_commons',
+          name: 'Wikimedia Commons',
+          editor: {
+            version: 1,
+            groups: [
+              {
+                id: 'collection',
+                fields: [
+                  {
+                    key: 'collection',
+                    label: 'Collection',
+                    control: 'select',
+                    required: true,
+                    default: 'featured-landscapes',
+                    help: 'Panora contacts Wikimedia Commons to find and download reviewed landscape wallpapers.',
+                    options: [{ label: 'Featured landscapes', value: 'featured-landscapes' }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    };
+    api.Configuration.mockResolvedValue({ configuration: commons });
+    await ready();
+    await add(user, 'Wikimedia Commons');
+    expect(screen.getByLabelText('Collection')).toHaveValue('featured-landscapes');
+    expect(screen.getByLabelText('Name')).toHaveValue('Featured landscapes');
+    expect(screen.getByText(/contacts Wikimedia Commons/)).toBeVisible();
+    expect(screen.getByRole('group', { name: 'Image rules' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(api.AddProviderInput).not.toHaveBeenCalled();
+    expect(api.SuggestProviderInput).not.toHaveBeenCalled();
+    await add(user, 'Wikimedia Commons');
+    const editor = within(screen.getByRole('form', { name: 'Add Wikimedia Commons' }));
+    await user.click(editor.getByRole('button', { name: 'Add source' }));
+    expect(api.AddProviderInput).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        provider_id: 'wikimedia_commons',
+        name: 'Featured landscapes',
+        enabled: true,
+        values: { collection: 'featured-landscapes' },
+      }),
+    );
+  });
   it('shows saved counts and debounced draft matches together in Source status', async () => {
     const api = installBridge();
     const user = userEvent.setup();

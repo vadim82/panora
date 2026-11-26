@@ -12,6 +12,8 @@ import (
 )
 
 const (
+	CommonsID        = "wikimedia_commons"
+	UserAgent        = "Panora (https://github.com/vadim82/panora)"
 	Protocol         = 2
 	JSONRPC          = "2.0"
 	MaxBatchSize     = 100
@@ -96,6 +98,7 @@ type Content struct {
 	Path      string `json:"path,omitempty"`
 	URL       string `json:"url,omitempty"`
 	MIMEType  string `json:"mime_type,omitempty"`
+	SHA256    string `json:"sha256,omitempty"`
 }
 
 // Content is an optional already-known location. Ref remains opaque to the host.

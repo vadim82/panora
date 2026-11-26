@@ -162,7 +162,7 @@ func ensureImage(ctx context.Context, tx *sql.Tx, provider, input, revision, sco
 			for _, pair := range []struct {
 				dst *string
 				old string
-			}{{&fresh.SourceURL, old.SourceURL}, {&fresh.Title, old.Title}, {&fresh.PageURL, old.PageURL}, {&fresh.Author, old.Author}, {&fresh.AuthorURL, old.AuthorURL}, {&fresh.LicenseURL, old.LicenseURL}} {
+			}{{&fresh.SourceURL, old.SourceURL}, {&fresh.Title, old.Title}, {&fresh.PageURL, old.PageURL}, {&fresh.Author, old.Author}, {&fresh.AuthorURL, old.AuthorURL}, {&fresh.LicenseURL, old.LicenseURL}, {&fresh.LicenseName, old.LicenseName}} {
 				if *pair.dst == "" {
 					*pair.dst = pair.old
 				}

@@ -26,6 +26,11 @@ func ValidExternalID(id string) bool {
 	return id != "local" && id != "wallhaven" && id != "omarchy" && externalID.MatchString(id)
 }
 
+// SupportsProviderInputs reports whether a provider uses manifest-defined inputs.
+func SupportsProviderInputs(id string) bool {
+	return id == CommonsID || ValidExternalID(id)
+}
+
 // InstalledPlugin represents a registry entry, including one that needs repair.
 type InstalledPlugin struct {
 	ID     string

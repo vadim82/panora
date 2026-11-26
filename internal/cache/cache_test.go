@@ -470,3 +470,23 @@ func TestFullDecodeAllocationBound(t *testing.T) {
 		t.Fatalf("image allocation limit not enforced: %v", err)
 	}
 }
+
+func TestMaterializeRequiresExpectedRevisionBytes(t *testing.T) {
+	c := newCache(t, 1, 0)
+	reviewed, data := fixture(t, 10)
+	hash := sha256.Sum256(data)
+	reviewed.SHA256 = hex.EncodeToString(hash[:])
+	first, err := c.Materialize(t.Context(), reviewed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement, _ := fixture(t, 20)
+	replacement.SHA256 = reviewed.SHA256
+	if _, err := c.Materialize(t.Context(), replacement); err == nil {
+		t.Fatal("materialized unreviewed replacement")
+	}
+	entries, err := c.entries()
+	if err != nil || len(entries) != 1 || entries[0].path != first.Path {
+		t.Fatalf("rejected replacement changed cache: %v, %v", entries, err)
+	}
+}

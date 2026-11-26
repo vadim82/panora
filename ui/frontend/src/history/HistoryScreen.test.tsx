@@ -59,6 +59,30 @@ const old: HistoryEntry = {
   attribution: { title: '<script>Mountain</script>', page_url: 'https://wallhaven.cc/w/abc123' },
 };
 describe('History and Excluded', () => {
+  it('shows the credited Commons file and license in History', async () => {
+    const api = installBridge();
+    api.History.mockResolvedValue({
+      page: {
+        entries: [
+          {
+            ...old,
+            provider: 'wikimedia_commons',
+            attribution: {
+              title: 'Glen Coe Rainbow',
+              author: '© User:Colin / Wikimedia Commons',
+              license_name: 'CC BY-SA 4.0',
+              license_url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+              page_url: 'https://commons.wikimedia.org/wiki/File:Glen_Coe_Rainbow.jpg',
+            },
+          },
+        ],
+      },
+    });
+    mount();
+    await openHistory();
+    expect(screen.getByText('© User:Colin / Wikimedia Commons · CC BY-SA 4.0')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'View on website: Glen Coe Rainbow' })).toBeEnabled();
+  });
   it('labels a previously saved untitled Wallhaven entry in both lists', async () => {
     const mock = installBridge();
     mock.History.mockResolvedValue({

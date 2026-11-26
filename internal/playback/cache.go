@@ -113,7 +113,7 @@ func (s *Service) materializeImage(ctx context.Context, choice playbackChoice, c
 	if err := enabledHistoryOrigin(choice.identity, candidate, config); err != nil {
 		return choice, err
 	}
-	if source.ValidExternalID(choice.identity.ProviderID) && s.request.provider(choice.identity.ProviderID) == nil {
+	if source.SupportsProviderInputs(choice.identity.ProviderID) && s.request.provider(choice.identity.ProviderID) == nil {
 		return choice, fmt.Errorf("provider is unavailable")
 	}
 	rules, ratio, resolution := s.resolveSourceRulesForBackend(ctx, config, choice.identity, selection.backend)
@@ -133,6 +133,9 @@ func (s *Service) materializeImage(ctx context.Context, choice playbackChoice, c
 	cached, ok, err := s.store.CachedImage(ctx, choice.identity.ImageID)
 	if err != nil {
 		return choice, err
+	}
+	if ok && candidate.Content != nil && candidate.Content.SHA256 != "" && cached.Hash != candidate.Content.SHA256 {
+		ok = false
 	}
 	if ok {
 		result, err = s.cache.Reuse(ctx, cache.Result(cached), protected...)
@@ -221,7 +224,7 @@ func (s *Service) resolveOriginal(ctx context.Context, id catalog.Identity, cand
 	if id.ProviderID == "local" && (candidate.Content == nil || resolved.Content.Kind != "local" || filepath.Clean(resolved.Content.Path) != filepath.Clean(candidate.Content.Path)) {
 		return source.Content{}, fmt.Errorf("resolved local original differs from selected image")
 	}
-	if id.ProviderID == "wallhaven" && resolved.Content.Kind != "https" {
+	if (id.ProviderID == "wallhaven" || id.ProviderID == source.CommonsID) && resolved.Content.Kind != "https" {
 		return source.Content{}, fmt.Errorf("remote provider returned non-HTTPS content")
 	}
 	if source.ValidExternalID(id.ProviderID) && resolved.Content.Kind == "local" {
@@ -229,6 +232,9 @@ func (s *Service) resolveOriginal(ctx context.Context, id catalog.Identity, cand
 			filepath.Clean(resolved.Content.Path) != filepath.Clean(candidate.Content.Path) {
 			return source.Content{}, fmt.Errorf("resolved provider original differs from discovered image")
 		}
+	}
+	if candidate.Content != nil && candidate.Content.SHA256 != "" && resolved.Content.SHA256 != candidate.Content.SHA256 {
+		return source.Content{}, fmt.Errorf("resolved original differs from the expected digest")
 	}
 	return resolved.Content, nil
 }

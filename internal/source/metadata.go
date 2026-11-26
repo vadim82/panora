@@ -1,6 +1,7 @@
 package source
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -14,12 +15,13 @@ type Dimensions struct {
 }
 
 type Attribution struct {
-	SourceURL  string `json:"source_url,omitempty"`
-	Title      string `json:"title,omitempty"`
-	PageURL    string `json:"page_url,omitempty"`
-	Author     string `json:"author,omitempty"`
-	AuthorURL  string `json:"author_url,omitempty"`
-	LicenseURL string `json:"license_url,omitempty"`
+	SourceURL   string `json:"source_url,omitempty"`
+	Title       string `json:"title,omitempty"`
+	PageURL     string `json:"page_url,omitempty"`
+	Author      string `json:"author,omitempty"`
+	AuthorURL   string `json:"author_url,omitempty"`
+	LicenseURL  string `json:"license_url,omitempty"`
+	LicenseName string `json:"license_name,omitempty"`
 }
 
 // FilterHints are optional provider-side optimizations, never eligibility proof.
@@ -45,7 +47,7 @@ func validateMetadata(d *Dimensions, a *Attribution, requirements []string) erro
 		return fmt.Errorf("unsupported provider dimensions or requirements")
 	}
 	if a != nil {
-		if len(a.Title) > 4096 || len(a.Author) > 4096 {
+		if len(a.Title) > 4096 || len(a.Author) > 4096 || len(a.LicenseName) > 128 {
 			return fmt.Errorf("provider attribution is too long")
 		}
 		for _, value := range []string{a.PageURL, a.AuthorURL, a.LicenseURL, a.SourceURL} {
@@ -60,6 +62,11 @@ func validateMetadata(d *Dimensions, a *Attribution, requirements []string) erro
 func validateContent(c Content) error {
 	if c.MediaKind != "image" || c.MIMEType != "" && c.MIMEType != "image/jpeg" && c.MIMEType != "image/png" {
 		return fmt.Errorf("unsupported provider media")
+	}
+	if c.SHA256 != "" {
+		if _, err := hex.DecodeString(c.SHA256); len(c.SHA256) != 64 || strings.ToLower(c.SHA256) != c.SHA256 || err != nil {
+			return fmt.Errorf("invalid original SHA-256 digest")
+		}
 	}
 	switch c.Kind {
 	case "local":

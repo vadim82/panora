@@ -317,11 +317,14 @@ func (c *Cache) Materialize(ctx context.Context, content source.Content, protect
 	if n > limit {
 		return Result{}, &Error{Stage: "decode", Code: "invalid_content", Err: fmt.Errorf("selected image exceeds the %d-byte limit", limit)}
 	}
+	digest := hex.EncodeToString(hash.Sum(nil))
+	if content.SHA256 != "" && digest != content.SHA256 {
+		return Result{}, &Error{Stage: "decode", Code: "invalid_content", Err: fmt.Errorf("selected original differs from its expected digest")}
+	}
 	pixels, format, err := decodeImage(ctx, f, n, nil)
 	if err != nil {
 		return Result{}, &Error{Stage: "decode", Code: "invalid_content", Err: err}
 	}
-	digest := hex.EncodeToString(hash.Sum(nil))
 	ext := imageExtension(format)
 	bounds := pixels.Bounds()
 	result := Result{Path: filepath.Join(c.options.Dir, digest+ext), Hash: digest, Width: bounds.Dx(), Height: bounds.Dy(), Bytes: n}
@@ -414,6 +417,7 @@ func (c *Cache) open(ctx context.Context, content source.Content) (io.ReadCloser
 		if err != nil {
 			return nil, err
 		}
+		req.Header.Set("User-Agent", source.UserAgent)
 		response, err := c.client.Do(req)
 		if err != nil {
 			return nil, &Error{Stage: "download", Code: "download_failed", Err: err}

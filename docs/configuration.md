@@ -229,7 +229,7 @@ ratio = "presets"
 ratio_presets = ["16:9", "21:9"]
 ```
 
-The same block is accepted under `providers.searches`. An optional
+The same block is accepted under `providers.searches` and `providers.inputs`. An optional
 `exact_resolutions = ["1920x1080", "5120x1440"]` accepts up to 12 distinct
 pixel dimensions. A nonempty list takes precedence over the minimum size.
 The ratio rule applies independently. A `ratio = "presets"` list can mix

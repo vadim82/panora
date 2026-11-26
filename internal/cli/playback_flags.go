@@ -7,6 +7,7 @@ import (
 
 	"github.com/vadim82/panora/internal/playback"
 	"github.com/vadim82/panora/internal/source"
+	"github.com/vadim82/panora/internal/sources/commons"
 	"github.com/vadim82/panora/internal/sources/wallhaven"
 )
 
@@ -15,8 +16,9 @@ func addPlaybackFlags(cmd *cobra.Command, request *playback.Request) {
 	cmd.Flags().StringVar(&pluginDirectory, "local-plugin", "", "explicit local plugin directory with plugin.json (default: bundled child process)")
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		request.Source = source.BundledLocal()
-		request.ProviderEditors = nil
-		request.Providers = map[string]source.Provider{"wallhaven": wallhaven.New()}
+		editor := commons.Editor()
+		request.ProviderEditors = []playback.ProviderEditor{{ID: source.CommonsID, Name: commons.Name, Editor: &editor}}
+		request.Providers = map[string]source.Provider{"wallhaven": wallhaven.New(), source.CommonsID: commons.New()}
 		if pluginDirectory != "" {
 			client, err := source.Load(pluginDirectory)
 			if err != nil {

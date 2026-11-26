@@ -61,6 +61,8 @@ export interface Attribution {
   title?: string;
   author?: string;
   page_url?: string;
+  license_name?: string;
+  license_url?: string;
 }
 export interface HistoryEntry extends Entry {
   provider: string;

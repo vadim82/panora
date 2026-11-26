@@ -38,6 +38,29 @@ async function ready() {
   await waitFor(() => expect(screen.getByRole('button', { name: 'Next wallpaper' })).toBeEnabled());
 }
 describe('Now', () => {
+  it('shows a Commons credit and license with the original file-page action', async () => {
+    const mock = installBridge();
+    const saved = structuredClone(snapshot);
+    saved.current = {
+      ...saved.current!,
+      provider: 'wikimedia_commons',
+      original_path: undefined,
+      dimensions: { width: 4801, height: 2701 },
+      attribution: {
+        title: 'Glen Coe Rainbow',
+        author: '© User:Colin / Wikimedia Commons',
+        license_name: 'CC BY-SA 4.0',
+        license_url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+        page_url: 'https://commons.wikimedia.org/wiki/File:Glen_Coe_Rainbow.jpg',
+      },
+    };
+    mock.Status.mockResolvedValue(saved);
+    mount();
+    await ready();
+    expect(screen.getByRole('heading', { name: 'Glen Coe Rainbow' })).toBeVisible();
+    expect(screen.getByText(/© User:Colin \/ Wikimedia Commons · CC BY-SA 4.0/)).toBeVisible();
+    expect(screen.getByRole('button', { name: /View on website/i })).toBeInTheDocument();
+  });
   it.each(['previous', 'next'] as const)(
     'recovers a persisted uncertain apply through explicit %s',
     async (action) => {

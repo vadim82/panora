@@ -8,6 +8,7 @@ and rotation.
 | --- | --- |
 | [Local files](local.md) | Folders containing JPEG, PNG, or static WebP files |
 | [Wallhaven](wallhaven.md) | Named SFW searches |
+| [Wikimedia Commons](commons.md) | Reviewed Featured landscapes collection |
 | [Omarchy theme](omarchy.md) | The active theme’s native still backgrounds |
 
 ## Provider settings
@@ -51,11 +52,11 @@ The [Next workflow](../architecture.md#what-happens-when-you-run-next) explains 
 
 The service runs the bundled local provider as `panora provider local`, one
 child process per JSON-RPC call. Installed provider programs use the same
-stdin/stdout contract. The service runs Wallhaven in process and handles the
+stdin/stdout contract. The service runs Wallhaven and Wikimedia Commons in process and handles the
 active Omarchy theme through its built-in discovery path.
 
-Both `panora provider local` and `panora provider wallhaven` are available for
-protocol diagnostics. The command selects the provider and the JSON request
+`panora provider local`, `panora provider wallhaven`, and
+`panora provider commons` are available for protocol diagnostics. The command selects the provider and the JSON request
 selects the operation. For a folder diagnostic in the terminal, use `panora scan`.
 
 | Method | Purpose |

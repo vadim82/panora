@@ -61,7 +61,10 @@ function ManifestEditor({
   const fields = useMemo(() => manifestFields(manifest), [manifest]);
   const [editor, setEditor] = useState(() => {
     const saved = { ...defaults, ...input?.values };
-    const name = input?.name || description?.name || '';
+    const name =
+      input?.name ||
+      (providerID === 'wikimedia_commons' ? 'Featured landscapes' : description?.name) ||
+      '';
     const rules = sourceRuleDraft(input || { effective_rules: config.rules }, config.rules);
     return {
       revision: config.revision,

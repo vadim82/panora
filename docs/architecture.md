@@ -23,13 +23,13 @@ the same scheduler when a source is enabled. See the
 | `internal/cache` | Selected-file copy/download, validation, publication and eviction |
 | `internal/source` | Provider interface, versioned editor manifests, program registry and bounded JSON-RPC child processes |
 | `internal/omarchytheme` | Read-only active theme state, palette and still enumeration |
-| `internal/sources/*` | Local traversal and Wallhaven metadata implementations |
+| `internal/sources/*` | Local traversal and remote metadata implementations |
 | `internal/desktop` | Backend readiness, Fit preparation and wallpaper application |
 | `internal/localfiles`, `internal/filelock` | Shared path checks and advisory locks |
 
 The CLI injects provider implementations into playback through the provider
 interface. The installed service starts the local provider from its own
-executable and calls Wallhaven in process.
+executable and calls Wallhaven and Wikimedia Commons in process.
 [Dependency tests](../internal/cli/architecture_test.go) enforce those package
 boundaries. [Provider commands](providers/README.md#running-a-provider) expose
 the same operations over JSON-RPC. Playback reads Omarchy theme state and
@@ -125,7 +125,7 @@ and platform-specific dependencies behind the adapter boundary.
    entries with an explanation; use validated cached bytes when available.
 2. For a fresh choice, read committed candidates for the enabled input revisions.
    Independent background discovery commits each page with its next cursor.
-   A slow refresh does not hold the playback action lock. Exclude Wallhaven
+   A slow refresh does not hold the playback action lock. Exclude Wallhaven and Wikimedia Commons
    candidates with known nonmatching dimensions from the draw. Previously
    decoded dimensions take precedence over the search listing's dimensions.
    Shuffle also uses known dimensions for other HTTPS candidates. Local

@@ -19,6 +19,7 @@ import (
 	"github.com/vadim82/panora/internal/playback"
 	"github.com/vadim82/panora/internal/service"
 	"github.com/vadim82/panora/internal/source"
+	"github.com/vadim82/panora/internal/sources/commons"
 	"github.com/vadim82/panora/internal/sources/local"
 	"github.com/vadim82/panora/internal/sources/wallhaven"
 )
@@ -90,7 +91,8 @@ func run(ctx context.Context, images string, interval time.Duration, display str
 		}
 		return fixtureDesktop{}, nil
 	}
-	options := playback.ServiceOptions{Request: playback.Request{ConfigPath: configPath, StatePath: filepath.Join(directory, "state.db"), CachePath: filepath.Join(directory, "cache"), Source: local.Provider{}, Providers: map[string]source.Provider{"wallhaven": wallhaven.New()}, Options: config.Desktop.Options(), InspectCapabilities: inspect, ResolveBackend: resolve}, Paused: true, Backend: config.Desktop.Backend}
+	editor := commons.Editor()
+	options := playback.ServiceOptions{Request: playback.Request{ConfigPath: configPath, StatePath: filepath.Join(directory, "state.db"), CachePath: filepath.Join(directory, "cache"), Source: local.Provider{}, Providers: map[string]source.Provider{"wallhaven": wallhaven.New(), source.CommonsID: commons.New()}, ProviderEditors: []playback.ProviderEditor{{ID: source.CommonsID, Name: commons.Name, Editor: &editor}}, Options: config.Desktop.Options(), InspectCapabilities: inspect, ResolveBackend: resolve}, Paused: true, Backend: config.Desktop.Backend}
 	return service.Run(ctx, options, func(context.Context) (desktop.WallpaperBackend, error) { return fixtureDesktop{}, nil }, socket, os.Stdout, os.Stderr, service.Hooks{})
 }
 

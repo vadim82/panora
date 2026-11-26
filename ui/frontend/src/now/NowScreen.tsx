@@ -402,6 +402,7 @@ export function NowScreen() {
     dimensions ? `${dimensions.width} × ${dimensions.height}` : '',
     dimensions ? aspectRatio(dimensions.width, dimensions.height) : '',
     metadata?.attribution?.author || '',
+    metadata?.attribution?.license_name || '',
     ...(metadata ? sourceLabels(metadata, ui.liveConfiguration || ui.configuration) : []),
     ui.snapshot?.current_error ? 'Image details temporarily unavailable' : '',
   ]

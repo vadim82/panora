@@ -71,8 +71,13 @@ type ProviderInputEdit struct {
 func (s *Service) providerEditors(config Config) []ProviderEditor {
 	editors := slices.Clone(s.request.ProviderEditors)
 	for _, p := range config.Providers {
-		if source.ValidExternalID(p.ID) && editorIndex(editors, p.ID) < 0 {
-			editors = append(editors, ProviderEditor{ID: p.ID, Name: p.ID, EditorError: "Install this provider and restart Panora’s service."})
+		if source.SupportsProviderInputs(p.ID) && editorIndex(editors, p.ID) < 0 {
+			name := p.ID
+			message := "Install this provider and restart Panora’s service."
+			if p.ID == source.CommonsID {
+				name, message = "Wikimedia Commons", "Restart a compatible Panora service to use this collection."
+			}
+			editors = append(editors, ProviderEditor{ID: p.ID, Name: name, EditorError: message})
 		}
 	}
 	return editors

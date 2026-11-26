@@ -49,13 +49,16 @@ The title and navigation tabs stay visible as you scroll each section.
   If the wallpaper or service changes before Exclude is applied, review the
   current image before trying again.
 - **Sources** manages folders, saved SFW Wallhaven searches, the active
-  Omarchy theme, and inputs for installed providers. Open **Add source** to
+  Omarchy theme, the Wikimedia Commons Featured landscapes collection and
+  inputs for installed providers. Open **Add source** to
   choose a source. Select **Start wallpapers** when a saved source is ready and
   no wallpaper has been displayed.
 - **History** lists accepted images and supports replay. **Excluded** lists
   marked images, including those outside the retained history window. Restore
   clears its exclusion mark. If the preview is busy, reload History. A preview
   whose cached bytes are missing is shown as unavailable.
+- Now and History show the creator credit and license for Wikimedia Commons
+  images. **View on website** opens the original file page.
 - Now, History and Excluded show saved Wallhaven titles when available.
   Without a title, Now uses the image ID as its heading and names Wallhaven
   in the details. History and Excluded show **Wallhaven · ID**.

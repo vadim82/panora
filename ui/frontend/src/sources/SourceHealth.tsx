@@ -7,7 +7,12 @@ import { DraftSearchMatches, SavedSearchCount, useSearchCounts } from './Wallhav
 import type { SearchDraftStatus } from './WallhavenCatalog';
 
 export const providerLabel = (id: string, config?: Configuration | null): string =>
-  ({ local: 'Local folders', wallhaven: 'Wallhaven', omarchy: 'Omarchy theme' })[id] ||
+  ({
+    local: 'Local folders',
+    wallhaven: 'Wallhaven',
+    omarchy: 'Omarchy theme',
+    wikimedia_commons: 'Wikimedia Commons',
+  })[id] ||
   config?.provider_editors?.find((provider) => provider.id === id)?.name ||
   'Image provider';
 const stateLabels: Record<string, string> = {

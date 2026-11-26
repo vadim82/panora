@@ -136,6 +136,11 @@ export function HistoryCard({
           {entry.dimensions ? `${entry.dimensions.width} × ${entry.dimensions.height} · ` : ''}
           {source} · {date(entry.accepted_at)}
         </p>
+        {entry.attribution?.license_name && (
+          <p>
+            {[entry.attribution.author, entry.attribution.license_name].filter(Boolean).join(' · ')}
+          </p>
+        )}
         {currentLabel && <p className="history-current">{currentLabel}</p>}
         <p id={`${id}-availability`}>
           {unavailable

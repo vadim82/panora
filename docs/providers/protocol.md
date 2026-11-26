@@ -206,11 +206,15 @@ Only `image` media and `local`/`https` content are supported. A local location h
 an absolute `path` and no `url`; HTTPS content has a `url` and no `path`. Optional
 `mime_type` must be `image/jpeg` or `image/png`; it is a claim, not byte validation.
 Candidate content may be omitted until `resolve`; resolved content is required.
+Optional `sha256` is a 64-character lowercase hex digest of the original.
+A digest supplied during discovery must match the resolved value. The shared
+cache checks the digest before publishing downloaded or copied bytes.
 
 Dimensions are optional on candidates and resolved results. Omit them or use
 null when unknown. If present, both width and height must be positive integers.
-Attribution fields are optional; `source_url` preserves an original source link
-separately from the author and image-page links. Titles, authors and each URL/path
+Attribution fields are optional. `source_url` preserves an original source link
+separately from the author and image-page links. `license_name` is a plain-text
+label of up to 128 bytes that can accompany `license_url`. Titles, authors and each URL/path
 are limited to 4 KiB. URLs must use HTTPS with a host and no user information, query, or
 fragment. Signed/private URLs are outside this contract. These are syntax checks;
 the shared cache also checks destinations, redirects, bytes and actual images.

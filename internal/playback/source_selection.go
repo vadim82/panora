@@ -188,7 +188,7 @@ func (s *Service) selectionPools(ctx context.Context, config Config, budget int,
 	shuffle := config.Playback.RotationMode == rotationShuffleAllImages
 	resolveRules := s.sourceRuleResolverForBackend(ctx, config, selection.backend)
 	for _, p := range config.Providers {
-		if !p.Enabled || source.ValidExternalID(p.ID) && s.request.provider(p.ID) == nil {
+		if !p.Enabled || source.SupportsProviderInputs(p.ID) && s.request.provider(p.ID) == nil {
 			continue
 		}
 		group := providerPool{id: p.ID}
@@ -222,7 +222,7 @@ func (s *Service) selectionPools(ctx context.Context, config Config, budget int,
 				// Retained dimensions can outlive an evicted copy of a mutable
 				// local original. Let materialization reopen and validate it.
 				remote := content == nil || content.Kind == "https"
-				if (p.ID == "wallhaven" || shuffle && remote) && !matchesKnownDimensions(c, rules, inputRatio) {
+				if (p.ID == "wallhaven" || p.ID == source.CommonsID || shuffle && remote) && !matchesKnownDimensions(c, rules, inputRatio) {
 					continue
 				}
 				if p.ID == "local" && c.Hash == "" {
@@ -389,7 +389,7 @@ func discoverMetadataWithCommit(ctx context.Context, store *catalog.Store, provi
 	switch providerID {
 	case "local":
 		kinds = []string{"local"}
-	case "wallhaven":
+	case "wallhaven", source.CommonsID:
 	default:
 		kinds = append(kinds, "local")
 	}
