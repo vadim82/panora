@@ -7,19 +7,12 @@ on:
       - ".github/workflows/homebrew.yml"
       - "tools/check_macos_bundle.py"
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: Prepare a formula patch for this published tag (optional)
-        type: string
-  release:
-    types: [published]
 
 permissions:
   contents: read
 
 jobs:
   install:
-    if: github.event_name != 'release' && !inputs.release_tag
     runs-on: macos-latest
     timeout-minutes: 45
     env:
@@ -44,7 +37,6 @@ jobs:
           python3 tools/check_macos_bundle.py "$(brew --prefix panora)/libexec/Panora.app"
 
   archive:
-    if: github.event_name != 'release' && !inputs.release_tag
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
@@ -96,120 +88,3 @@ jobs:
           path: ${{ runner.temp }}/macos-release
           if-no-files-found: error
           compression-level: 0
-
-  release-update:
-    if: (github.event_name == 'release' && !github.event.release.prerelease) || inputs.release_tag
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      tag: ${{ steps.formula.outputs.tag }}
-      updated: ${{ steps.formula.outputs.updated }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: main
-          persist-credentials: false
-      - name: Prepare an update for the published tag
-        id: formula
-        shell: bash
-        env:
-          TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
-          [[ "$(gh release view "$TAG" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" == false ]]
-          revision=$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)
-          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
-          current=$(sed -nE 's/^ *tag: +"(v[0-9.]+)",$/\1/p' Formula/panora.rb)
-          [[ "$current" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          if [[ "$current" == "$TAG" || "$(printf '%s\n' "$current" "$TAG" | sort -V | tail -1)" != "$TAG" ]]; then
-            echo "The formula already tracks Panora $current."
-            exit 0
-          fi
-          sed -i -E \
-            -e 's/^( *tag: +)"v[0-9.]+",$/\1"'"$TAG"'",/' \
-            -e 's/^( *revision: +)"[0-9a-f]{40}"$/\1"'"$revision"'"/' Formula/panora.rb
-          grep -Eq 'tag: +"'"$TAG"'"' Formula/panora.rb
-          grep -Eq 'revision: +"'"$revision"'"' Formula/panora.rb
-          git diff --check
-          ruby -c Formula/panora.rb
-          git diff -- Formula/panora.rb > "$RUNNER_TEMP/homebrew-formula-update.patch"
-          echo "Prepared a Homebrew formula update for $TAG." >> "$GITHUB_STEP_SUMMARY"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "updated=true" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: steps.formula.outputs.updated == 'true'
-        with:
-          name: homebrew-formula-update
-          path: ${{ runner.temp }}/homebrew-formula-update.patch
-          if-no-files-found: error
-          overwrite: true
-
-  open-update-pr:
-    needs: release-update
-    if: (github.event_name == 'release' || github.event_name == 'workflow_dispatch') && needs.release-update.outputs.updated == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      actions: read
-      contents: write
-      pull-requests: write
-    concurrency:
-      group: homebrew-update-${{ needs.release-update.outputs.tag }}
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: main
-          fetch-depth: 0
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: homebrew-formula-update
-          path: ${{ runner.temp }}/homebrew-update
-      - name: Open a formula update PR
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release-update.outputs.tag }}
-        run: |
-          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
-          branch="automation/homebrew-$TAG"
-          formula=Formula/panora.rb
-          existing=$(gh api "repos/$GITHUB_REPOSITORY/pulls" --method GET \
-            -f state=all -f "head=$GITHUB_REPOSITORY_OWNER:$branch" -f base=main \
-            --jq '.[0].html_url // empty')
-          if [[ -n "$existing" ]]; then
-            echo "A formula PR already exists for $TAG. $existing" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          git apply --index --include="$formula" "$RUNNER_TEMP/homebrew-update/homebrew-formula-update.patch"
-          [[ "$(git diff --cached --name-only)" == "$formula" ]]
-          git diff --cached --check
-          ruby -c "$formula"
-
-          remote=$(git ls-remote origin "refs/heads/$branch")
-          if [[ -n "$remote" ]]; then
-            git fetch --no-tags origin "refs/heads/$branch"
-            if ! git diff --quiet FETCH_HEAD -- "$formula" ||
-               [[ "$(git diff --name-only HEAD...FETCH_HEAD)" != "$formula" ]]; then
-              echo "::error::The existing update branch contains a different change."
-              exit 1
-            fi
-          else
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m "Update Homebrew formula to Panora $TAG"
-            git push origin "HEAD:refs/heads/$branch"
-          fi
-
-          body="$RUNNER_TEMP/homebrew-update/pull-request.md"
-          cat > "$body" <<EOF
-          The Homebrew formula now tracks Panora $TAG and its exact release commit.
-
-          Approve the GitHub Actions runs to start the native Homebrew checks, then review and merge the formula update.
-
-          [Panora $TAG release](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG)
-          EOF
-          url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "Update Homebrew formula to Panora $TAG" --body-file "$body")
-          echo "Opened the Homebrew formula PR for $TAG. $url" >> "$GITHUB_STEP_SUMMARY"

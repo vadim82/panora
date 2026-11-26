@@ -23,8 +23,33 @@ download the staged files from the workflow run.
 Review the draft notes and test the packages in isolated environments before
 publishing. The macOS ZIP is an ad-hoc signed preview. Its receipt and draft
 notes record the minimum macOS version, and Gatekeeper may block the download.
-Once the stable release is published, the Homebrew workflow prepares a patch
-for the formula.
+Publishing a stable release starts the Homebrew formula update.
+
+## Update the Homebrew formula
+
+The **Homebrew formula update** workflow opens a formula PR for the newest
+published stable release. The PR changes only the release tag and pinned source
+commit. The workflow reuses an existing PR on retry and checks the exact PR
+head against the generated change. After the Go workflow and the Homebrew
+install and archive checks pass, it attempts a normal protected merge. GitHub
+still enforces branch protection, review requirements and conversation
+resolution. The Actions run summary links to the PR and reports why a check,
+review or older version blocked the merge.
+
+To enable unattended updates, [register and install a private GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
+on this repository only. Grant it repository **Contents** and **Pull requests**
+write permissions. It does not need a webhook, extra repositories or any
+branch-protection exemption. Set the repository Actions variables
+`PANORA_HOMEBREW_APP_CLIENT_ID` and `PANORA_HOMEBREW_APP_SLUG` (without
+`[bot]`) and the Actions secret `PANORA_HOMEBREW_APP_PRIVATE_KEY`. The App
+opens the PR so GitHub starts its ordinary checks. It also performs the
+protected merge so GitHub starts the Go workflow on the resulting main commit.
+
+Without the App credential, the workflow still opens the formula PR. GitHub
+requires a maintainer to approve the workflow runs and merge the verified PR.
+To retry, run **Homebrew formula update** from `main` with the same published
+`vX.Y.Z` tag. The hourly recheck also handles reviews and conversations that
+were still open when CI completed.
 
 ## Stage a shared release
 
