@@ -7,8 +7,9 @@ The optional bar integration uses `socat`.
 
 ## Install, upgrade and remove
 
-Use the [signed Panora package repository](https://vadim82.github.io/panora/)
-for `yay` and normal Omarchy upgrades. For direct downloads, follow the
+[Set up the signed Panora package repository](https://vadim82.github.io/panora/)
+once, run `omarchy update`, then install with `yay -S panora`.
+For direct downloads, follow the
 [checksum and installation steps](../README.md#download-from-github-releases).
 
 To build from source, use a [recorded revision](#build-from-a-recorded-revision).
