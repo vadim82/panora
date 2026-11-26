@@ -1,0 +1,82 @@
+name: Homebrew formula update
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Retry a published stable release (vX.Y.Z)
+        required: true
+        type: string
+  workflow_run:
+    workflows: [Go, Homebrew formula]
+    types: [completed]
+  schedule:
+    # Recheck open PRs whose required reviews or conversations took longer than CI.
+    - cron: "23 * * * *"
+
+permissions: {}
+
+jobs:
+  update:
+    if: >-
+      (github.event_name == 'release' && !github.event.release.prerelease) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       startsWith(github.event.workflow_run.head_branch, 'automation/homebrew-v')) ||
+      github.event_name == 'schedule'
+    concurrency:
+      group: homebrew-formula-update-${{ github.event.workflow_run.head_branch || format('automation/homebrew-{0}', inputs.release_tag || github.event.release.tag_name || 'scheduled') }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    env:
+      APP_SLUG: ${{ vars.PANORA_HOMEBREW_APP_SLUG }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate the release and any existing formula PR
+        id: plan
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: python3 tools/homebrew_update.py plan
+      - name: Check whether release automation is configured
+        id: app-config
+        if: steps.plan.outputs.action != ''
+        env:
+          APP_CLIENT_ID: ${{ vars.PANORA_HOMEBREW_APP_CLIENT_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.PANORA_HOMEBREW_APP_PRIVATE_KEY }}
+        run: |
+          if [[ -n "$APP_CLIENT_ID" && -n "$APP_PRIVATE_KEY" && -n "$APP_SLUG" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::The Homebrew GitHub App is not configured. The PR needs normal workflow approval and a maintainer merge. See docs/releases.md."
+          fi
+      - uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3
+        if: steps.app-config.outputs.configured == 'true'
+        id: app
+        with:
+          client-id: ${{ vars.PANORA_HOMEBREW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PANORA_HOMEBREW_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Create or merge the validated formula PR
+        if: steps.plan.outputs.action == 'open' || steps.app.outputs.token != ''
+        env:
+          APP_TOKEN: ${{ steps.app.outputs.token }}
+          TOKEN_APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          UPDATE_ACTION: ${{ steps.plan.outputs.action }}
+          RELEASE_TAG: ${{ steps.plan.outputs.tag }}
+          EXPECTED_HEAD: ${{ steps.plan.outputs.head }}
+        run: python3 tools/homebrew_update.py apply
