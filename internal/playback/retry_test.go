@@ -1,11 +1,14 @@
 package playback
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -14,6 +17,37 @@ import (
 	"github.com/vadim82/panora/internal/catalog"
 	"github.com/vadim82/panora/internal/source"
 )
+
+func TestSourceFailureLogRecordsRetryWithoutProviderText(t *testing.T) {
+	s, _ := testService(t, &fakeWallpaperBackend{})
+	var output bytes.Buffer
+	s.request.SourceLogger = slog.New(slog.NewJSONHandler(&output, nil))
+	key := catalog.RetryKey{ProviderID: "wallhaven", InputID: "space", Scope: "discovery"}
+	s.observeRetry(key, "discovery", context.Canceled)
+	if output.Len() != 0 {
+		t.Fatalf("canceled check was logged: %s", &output)
+	}
+	const privateProviderText = "PRIVATE_PROVIDER_RESPONSE"
+	s.observeRetry(key, "discovery", source.Failure("rate_limited", privateProviderText))
+	if strings.Contains(output.String(), privateProviderText) {
+		t.Fatalf("source log includes raw provider text: %s", &output)
+	}
+	var event struct {
+		Provider string    `json:"provider"`
+		Input    string    `json:"input"`
+		Stage    string    `json:"stage"`
+		Code     string    `json:"code"`
+		Attempt  int       `json:"attempt"`
+		RetryAt  time.Time `json:"retry_at"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &event); err != nil {
+		t.Fatal(err)
+	}
+	if event.Provider != "wallhaven" || event.Input != "space" || event.Stage != "discovery" ||
+		event.Code != "rate_limited" || event.Attempt != 1 || !event.RetryAt.Equal(s.retryUntil(key, "provider_metadata")) {
+		t.Fatalf("unexpected source failure log: %+v", event)
+	}
+}
 
 func TestDiscoveryRetryRecoveryResetsBackoff(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

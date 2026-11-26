@@ -519,6 +519,7 @@ export function SourcesScreen() {
               const description = [
                 paused && `source-rotation-${key}`,
                 details && `source-facts-${key}`,
+                !removed && `source-image-rules-${key}`,
               ]
                 .filter(Boolean)
                 .join(' ');
@@ -544,6 +545,13 @@ export function SourcesScreen() {
                         <span className="source-row-title">
                           <strong title={name}>{name}</strong>
                           {paused && <span id={`source-rotation-${key}`}>Out of rotation</span>}
+                          {!removed && (
+                            <span id={`source-image-rules-${key}`}>
+                              {source.input.image_rules
+                                ? 'Source-specific image rules'
+                                : 'Shared image rules'}
+                            </span>
+                          )}
                         </span>
                         <span className="source-context" title={context}>
                           {type}

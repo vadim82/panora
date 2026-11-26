@@ -88,14 +88,13 @@ func (s *Service) observeRetry(key catalog.RetryKey, stage string, err error) {
 	if errors.As(err, &deferred) || errors.Is(err, context.Canceled) {
 		return
 	}
-	s.retryMu.Lock()
-	defer s.retryMu.Unlock()
 	if err == nil {
+		s.retryMu.Lock()
 		s.deleteRetryLocked(key)
 		if stage == "discovery" {
 			s.clearProviderRetryLocked(key.ProviderID, "provider_metadata")
 		}
-
+		s.retryMu.Unlock()
 		s.wakeDiscovery()
 		return
 	}
@@ -108,6 +107,7 @@ func (s *Service) observeRetry(key catalog.RetryKey, stage string, err error) {
 	if errors.As(err, &typed) && (typed.Code == "rate_limited" || typed.Code == "unavailable") {
 		hint = typed.RetryAfterSeconds
 	}
+	s.retryMu.Lock()
 	states := []catalog.RetryState{s.retryStateLocked(key, failure, hint)}
 	if failure.Code == "rate_limited" || failure.Code == "auth_required" || failure.Code == "auth_rejected" || hint != nil && *hint > 0 {
 		scope := "provider_metadata"
@@ -121,7 +121,17 @@ func (s *Service) observeRetry(key catalog.RetryKey, stage string, err error) {
 	if err := s.store.SaveRetries(ctx, states); err != nil {
 		s.failRetryStore(err)
 	}
+	s.retryMu.Unlock()
 	s.wakeDiscovery()
+	if logger := s.request.SourceLogger; logger != nil {
+		retry := states[0]
+		next := retry.NextAt
+		if len(states) > 1 {
+			next = maxTime(next, states[1].NextAt)
+		}
+		logger.Warn("Image source failed", "provider", key.ProviderID, "input", key.InputID,
+			"stage", failure.Stage, "code", failure.Code, "attempt", retry.Attempts, "retry_at", next.UTC())
+	}
 }
 
 func (s *Service) retryStateLocked(key catalog.RetryKey, failure *RefreshFailure, hint *int64) catalog.RetryState {

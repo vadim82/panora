@@ -103,7 +103,8 @@ safe-for-work discovery. Opening or canceling the editor has no effect on
 saved searches or enabled sources.
 
 Search by name, path, query or type. Use **In rotation**, **Off** or **Needs
-attention** to filter the list. Click a source row to open its editor underneath.
+attention** to filter the list. Each row shows whether the source uses shared
+or source-specific image rules. Click a source row to open its editor underneath.
 Opening another editor or closing the row prompts you before discarding unsaved
 edits. Searching and filtering keep the open editor available. **Save** and
 **Cancel** return focus to the row when it is visible.
