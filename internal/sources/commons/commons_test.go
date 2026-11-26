@@ -227,9 +227,14 @@ func TestSearchPublicDomainMetadata(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &item); err != nil {
 		t.Fatal(err)
 	}
-	candidate, _, ok := liveCandidate(item)
+	item.LastRevID = 100
+	candidate, approval, ok := liveCandidate(item)
 	if !ok || candidate.Attribution.LicenseName != "Public domain" || candidate.Attribution.LicenseURL != candidate.Attribution.PageURL {
 		t.Fatalf("missing Commons public domain details: %+v", candidate.Attribution)
+	}
+	item.LastRevID++
+	if _, updated, ok := liveCandidate(item); !ok || updated.TermsDigest == approval.TermsDigest {
+		t.Fatal("approving public domain terms did not bind the file page revision")
 	}
 	delete(item.ImageInfo[0].ExtMetadata, "License")
 	if _, _, ok := liveCandidate(item); ok {

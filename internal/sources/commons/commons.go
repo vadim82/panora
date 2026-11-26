@@ -202,6 +202,7 @@ type imageInfo struct {
 type filePage struct {
 	Index     int         `json:"index"`
 	PageID    int         `json:"pageid"`
+	LastRevID int         `json:"lastrevid"`
 	Title     string      `json:"title"`
 	Namespace int         `json:"ns"`
 	ImageInfo []imageInfo `json:"imageinfo"`
@@ -332,7 +333,7 @@ type apiResponse struct {
 func (p *Provider) api(ctx context.Context, query url.Values) (apiResponse, error) {
 	var body apiResponse
 	query.Set("action", "query")
-	query.Set("prop", "imageinfo")
+	query.Set("prop", "imageinfo|info")
 	query.Set("iiprop", "url|size|mime|sha1|extmetadata")
 	query.Set("iiextmetadatafilter", strings.Join(termsFields, "|")+"|License")
 	query.Set("iiextmetadatalanguage", "en")

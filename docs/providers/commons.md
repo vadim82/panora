@@ -30,8 +30,9 @@ skipped. [Commons file filters](https://www.mediawiki.org/wiki/Help:CirrusSearch
 
 Approval records the file's page ID, upload revision and reuse terms. Rotation
 checks the saved approvals. Discovery and new downloads skip files whose
-revision or reuse terms have changed. Run a new search to review and approve
-an updated file.
+revision or reuse terms have changed. When the file page is the source for a
+public-domain claim, an approval also records the page revision. Run a new
+search to review and approve an updated file.
 
 ## Featured landscapes
 

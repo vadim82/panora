@@ -170,11 +170,17 @@ func liveCandidate(item filePage) (source.Candidate, source.CommonsApproval, boo
 	if author == "" || title == "" || original == "" || page == "" || license == "" || licenseURL == "" {
 		return c, approval, false
 	}
-	terms := make([]string, 0, len(termsFields)+1)
+	terms := make([]string, 0, len(termsFields)+2)
 	for _, field := range termsFields {
 		terms = append(terms, info.ExtMetadata[field].Value)
 	}
 	terms = append(terms, info.ExtMetadata["License"].Value)
+	if licenseURL == page {
+		if item.LastRevID < 1 {
+			return c, approval, false
+		}
+		terms = append(terms, strconv.Itoa(item.LastRevID))
+	}
 	approval = source.CommonsApproval{PageID: item.PageID, Revision: info.SHA1, TermsDigest: termsDigest(terms)}
 	if !approval.Valid() {
 		return c, approval, false
