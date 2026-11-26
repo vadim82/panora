@@ -7,9 +7,12 @@ import (
 	"testing"
 )
 
-func TestWindowAccentFollowsCurrentOmarchyTheme(t *testing.T) {
+func TestWindowPaletteFollowsCurrentOmarchyTheme(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		t.Skip("Omarchy session")
+		if (&Client{}).WindowPalette() != nil {
+			t.Fatal("Omarchy window colors are only available on Linux")
+		}
+		return
 	}
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -20,31 +23,45 @@ func TestWindowAccentFollowsCurrentOmarchyTheme(t *testing.T) {
 		t.Fatal(err)
 	}
 	client := &Client{}
+	if got := client.WindowPalette(); got != nil {
+		t.Fatalf("missing file returned %+v", got)
+	}
 	for _, tc := range []struct {
-		name, palette, accent string
+		name, palette string
+		want          *WindowPaletteResult
 	}{
-		{name: "absent"},
-		{name: "Ethereal", palette: "accent = '#7D82D9'", accent: "#7d82d9"},
-		{name: "Tokyo Night", palette: "accent = '#7aa2f7'", accent: "#7aa2f7"},
+		{
+			name:    "Ethereal",
+			palette: "accent = '#7D82D9'\nbackground = '#060B1E'\nforeground = '#ffcead'\nselection = '#252e56'\nmuted = '#6d7db6'\nred = '#ED5B5A'\nyellow = '#E9BB4F'",
+			want: &WindowPaletteResult{
+				Accent: "#7d82d9", Background: "#060b1e", Foreground: "#ffcead",
+				Selection: "#252e56", Muted: "#6d7db6", Red: "#ed5b5a", Yellow: "#e9bb4f",
+			},
+		},
+		{
+			name:    "light theme",
+			palette: "accent = '#205EA6'\nbackground = '#FFFCF0'\nforeground = '#100F0F'",
+			want:    &WindowPaletteResult{Accent: "#205ea6", Background: "#fffcf0", Foreground: "#100f0f"},
+		},
 		{name: "malformed TOML", palette: "accent ="},
-		{name: "malformed accent", palette: "accent = '#zzz'\nblue = '#123456'"},
-		{name: "accent absent", palette: "blue = '#123456'"},
-		{name: "resumed", palette: "accent = '#123456'", accent: "#123456"},
+		{
+			name:    "invalid accent",
+			palette: "accent = '#zzz'\nbackground = '#123456'",
+			want:    &WindowPaletteResult{Background: "#123456"},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.palette != "" {
-				path := filepath.Join(root, "colors.toml")
-				if err := os.WriteFile(path, []byte(tc.palette), 0600); err != nil {
-					t.Fatal(err)
-				}
+			if err := os.WriteFile(filepath.Join(root, "colors.toml"), []byte(tc.palette), 0600); err != nil {
+				t.Fatal(err)
 			}
-			if got := client.WindowAccent(); got != tc.accent {
-				t.Fatalf("window accent = %q, want %q", got, tc.accent)
+			got := client.WindowPalette()
+			if (got == nil) != (tc.want == nil) || (got != nil && *got != *tc.want) {
+				t.Fatalf("window palette = %+v, want %+v", got, tc.want)
 			}
 		})
 	}
 	t.Setenv("HYPRLAND_INSTANCE_SIGNATURE", "")
-	if got := client.WindowAccent(); got != "" {
-		t.Fatalf("non-Omarchy session with stale files returned %q", got)
+	if got := client.WindowPalette(); got != nil {
+		t.Fatalf("non-Omarchy session with stale files returned %+v", got)
 	}
 }

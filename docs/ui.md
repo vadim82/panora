@@ -13,11 +13,15 @@ share rows where space permits and stack in smaller windows. The desktop
 framing preview sits alongside Picture fit controls at normal window widths
 and below them in a narrow window.
 
-In an Omarchy session, the active theme accent updates the main navigation
-underline and primary buttons while Panora is open. Panora uses its built-in
-accent if the theme color is unavailable or has insufficient contrast. Accent
-updates preserve focus, edits and playback. Saved Wallhaven swatches retain the
-colors copied when the search was edited.
+In an Omarchy session, the window follows the active theme while it is open.
+The theme colors the window, panels, dialogs, text, borders, and controls.
+Panora checks text and button labels at 4.5:1 contrast and control boundaries
+and selection indicators at 3:1. It substitutes readable colors for missing or
+low-contrast accents and uses Paper or Midnight if the theme cannot supply
+readable foreground and background colors. Theme changes preserve focus,
+unsaved edits, and playback. Saved Wallhaven swatches retain their colors.
+**Use theme palette** copies the current swatches into the search draft on
+request.
 
 ## Everyday use
 

@@ -15,6 +15,7 @@ import (
 // Palette contains normalized colors from an Omarchy theme's colors.toml.
 type Palette struct {
 	Accent, Background, Foreground          string
+	Muted, Selection                        string
 	Blue, Green, Magenta, Cyan, Red, Yellow string
 }
 
@@ -73,7 +74,8 @@ func ReadPalette(root string) (Palette, error) {
 	}
 	return Palette{
 		Accent: color("accent"), Background: color("background", "bg", "color0"),
-		Foreground: color("foreground", "fg", "color7"), Blue: color("blue", "color4"),
+		Foreground: color("foreground", "fg", "color7"),
+		Muted:      color("muted", "dark_foreground"), Selection: color("selection"), Blue: color("blue", "color4"),
 		Green: color("green", "color2"), Magenta: color("magenta", "purple", "color5"),
 		Cyan: color("cyan", "color6"), Red: color("red", "color1"), Yellow: color("yellow", "color3"),
 	}, nil
