@@ -9,13 +9,39 @@ permissions:
   contents: read
 
 jobs:
+  scope:
+    name: Determine app check scope
+    runs-on: ubuntu-latest
+    outputs:
+      run_app: ${{ steps.scope.outputs.run_app }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check the diff and select app jobs
+        id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python3 tools/ci_scope.py "$BASE" "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
   frontend:
     name: Native client frontend
+    needs: scope
+    if: ${{ always() && (needs.scope.result != 'success' || needs.scope.outputs.run_app != 'false') }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ui
     steps:
+      - name: Verify the scope decision
+        working-directory: .
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          RUN_APP: ${{ needs.scope.outputs.run_app }}
+        run: |
+          [[ "$SCOPE_RESULT" == success ]]
+          [[ "$RUN_APP" == true ]]
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
@@ -27,14 +53,13 @@ jobs:
       - name: Check React types, lint, formatting, workflows and build
         run: corepack pnpm check
 
-  test:
-    name: Test (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
+  # Keep explicit names so a skipped job still reports its required check.
+  test-linux:
+    name: Test (ubuntu-latest)
+    needs: scope
+    if: &run-app needs.scope.outputs.run_app == 'true'
+    runs-on: ubuntu-latest
+    steps: &test-steps
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -99,18 +124,21 @@ jobs:
           go -C ui test -tags 'wails,production' ./...
           go -C ui vet -tags 'wails,production' ./...
 
-  lint:
-    name: Lint (${{ matrix.name }})
+  test-macos:
+    name: Test (macos-latest)
+    needs: scope
+    if: *run-app
+    runs-on: macos-latest
+    steps: *test-steps
+
+  lint-service:
+    name: Lint (CLI and service)
+    needs: scope
+    if: *run-app
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: CLI and service
-            directory: .
-          - name: Native bridge
-            directory: ui
-    steps:
+    env:
+      LINT_DIRECTORY: .
+    steps: &lint-steps
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -122,5 +150,14 @@ jobs:
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: v2.15.0
-          working-directory: ${{ matrix.directory }}
+          working-directory: ${{ env.LINT_DIRECTORY }}
           args: --config=${{ github.workspace }}/.golangci.yml
+
+  lint-native:
+    name: Lint (Native bridge)
+    needs: scope
+    if: *run-app
+    runs-on: ubuntu-latest
+    env:
+      LINT_DIRECTORY: ui
+    steps: *lint-steps
