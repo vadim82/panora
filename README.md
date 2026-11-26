@@ -4,31 +4,63 @@
 [![Latest release](https://img.shields.io/github/v/release/vadim82/panora)](https://github.com/vadim82/panora/releases/latest)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**A wallpaper rotation you can make your own on Omarchy and macOS.**
+**A wallpaper rotator for Omarchy and Apple silicon Macs.**
 
-Mix your own folders and saved Wallhaven searches in one rotation. Find new
-images that fit your screen, go back to ones you liked, and exclude the ones
-you’d rather skip. On Omarchy, you can also include the active theme’s
-wallpapers.
+Keep your favorite wallpapers in rotation while discovering new ones. Mix
+local folders and saved Wallhaven searches, decide which images qualify for
+your screen, and let Panora change the wallpaper in the background. On Omarchy,
+the active theme’s wallpapers can join the same rotation.
+
+[Install on Omarchy](#install-on-omarchy) ·
+[Install on macOS](#install-on-macos-apple-silicon) ·
+[What Panora can do](#what-panora-can-do)
 
 [![Panora on Omarchy. The current wallpaper sits between two angled previews and the desktop changes when Next is clicked.](assets/screenshots/panora-cover-flow.gif)](assets/screenshots/panora-demo.mp4)
 
-[Watch the Omarchy demo](assets/screenshots/panora-demo.mp4) ·
-[Install on Omarchy](#install-on-omarchy) ·
-[Install on macOS](#install-on-macos-apple-silicon)
+[Watch the Omarchy demo](assets/screenshots/panora-demo.mp4) to see wallpaper
+previews, history replay, and bar controls.
 
-## Make the rotation yours
+## What Panora can do
 
-- **Mix your sources.** Add local folders and save separate Wallhaven searches
-  such as *wide landscapes* and *night skies*. Give each source its own size
-  and aspect-ratio rules. **Balance sources** gives each eligible provider an
-  equal chance, so Wallhaven gets a turn alongside a large local library.
-- **See what’s next.** Step through wallpaper previews in **Now**. Pause or
-  skip from the app, the CLI, the Omarchy bar, or the macOS menu bar.
-  Rotation continues after you close the window.
-- **Revisit or exclude.** Replay an earlier wallpaper from **History** or
-  exclude an image from future rotation. Restore it from **Excluded** if you
-  change your mind.
+### Mix your collection with new wallpapers
+
+Add several folders and save multiple Wallhaven searches. Keep a folder of
+favorites in rotation alongside searches like *wide
+landscapes* and *night skies*. Each search has its own terms, tags, categories,
+and colors. Match any or all of the selected tags. Online discovery is opt-in
+and limited to safe-for-work results. Turn individual sources on or off without
+deleting them. [See the Wallhaven search editor](assets/screenshots/wallhaven-filters/expanded.png)
+
+By default, **Balance sources** gives each eligible provider an equal chance,
+so a large folder collection doesn’t crowd out Wallhaven. Choose **Shuffle
+all images** to give each distinct eligible image in the loaded collection an
+equal chance. [Rotation settings](docs/configuration.md#rotation-mode)
+
+### Set shared filters or tune each source
+
+Set a shared minimum resolution and aspect ratio in **Settings**. Sources set
+to **Use shared rules** follow those settings. For example, set a shared
+minimum of 2560 × 1440, then give *night skies* its own 5120 × 1440 minimum and
+32:9 aspect ratio. [Image rules](docs/configuration.md#image-rules-for-each-source)
+
+Once Panora picks an image, choose how it looks on the desktop. **Fit** shows
+the whole image and **Crop** fills the display on supported setups.
+[Picture fit](docs/fit.md)
+
+### Preview, skip, and revisit
+
+Set the rotation interval, preview neighboring wallpapers when available, and
+pause or skip whenever you want. Replay a wallpaper from **History**, or
+exclude it from future rotation and restore it later. Rotation keeps running
+when you close the window. Control it from the app, the CLI, the Omarchy bar,
+or the macOS menu bar. [User guide](docs/ui.md#everyday-use)
+
+### Add image-provider plugins
+
+Panora supports plugins that discover images from other services or collections.
+Install a trusted external provider with `panora provider install DIRECTORY`
+and restart Panora’s service. Providers with a compatible editor manifest can
+expose their settings in **Sources**. [Provider guide and protocol](docs/providers/README.md#custom-provider-programs)
 
 ## Install on Omarchy
 
@@ -61,20 +93,17 @@ To upgrade a direct download, verify and install the new package the same way.
 ### Open Panora
 
 Open **Panora** from the Omarchy launcher. On first launch, it starts with
-the active theme. Online discovery is opt-in and uses safe-for-work Wallhaven
-results. On Omarchy 4.5, the package adds playback controls to the bar on
-first use.
+the active theme’s wallpapers, and the app follows the theme’s colors. On
+Omarchy 4.5, the package adds playback controls to the bar on first use.
 
 See [Omarchy setup and removal](integrations/omarchy/README.md#install-from-the-marketplace)
 for managing or removing the bar widget.
 
 ## Install on macOS (Apple silicon)
 
-Panora has a native Mac window and menu bar controls. Start with a local
-folder or a saved Wallhaven search, and turn on **Start Panora at login**
-in Settings if you want rotation to start automatically. The menu bar stays
-available when you quit the window, and your current wallpaper follows you
-as you visit ordinary Desktops in Spaces.
+Panora has a native Mac window and menu bar controls. Turn on **Start Panora at
+login** in Settings to start rotation automatically. Your current wallpaper
+follows you as you visit ordinary Desktops in Spaces. [macOS guide](docs/macos.md) · [Platform coverage](docs/status.md)
 
 ### Install with Homebrew
 
