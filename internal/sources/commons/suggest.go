@@ -24,8 +24,8 @@ func (p *Provider) Suggest(ctx context.Context, params source.SuggestParams) ([]
 	select {
 	case p.suggestSlot <- struct{}{}:
 		defer func() { <-p.suggestSlot }()
-	default:
-		return list, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 	if time.Now().Before(p.suggestRetryUntil) {
 		return list, nil
