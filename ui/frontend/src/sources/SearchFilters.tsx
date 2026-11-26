@@ -6,12 +6,12 @@ import { useScreenCapabilities, useScreenResolution } from '../settings/ImageSet
 import { ColorDots, ProviderField, toggleValue as toggle } from './ProviderFields';
 import { wallhavenField } from './wallhavenManifest';
 import { wallhavenTags } from './wallhavenTags';
+import { labelResolution, wallpaperResolutions } from './wallpaperResolutions';
 import type { Capabilities, ImageRules, RuleResolution, WallhavenTagMatch } from '../types';
 import { sourceRules, sourceRuleSummary } from './SourceRules';
 import type { SourceRuleDraft } from './SourceRules';
 
 const categoryNames = wallhavenField('categories').options!.map(({ label }) => label);
-const sizes = ['1920x1080', '2560x1440', '3440x1440', '3840x2160', '5120x1440'];
 const screenRatios: Record<string, string> = {
   monitor: 'Same shape as my screen',
   'monitor-similar': 'Similar to my screen',
@@ -35,7 +35,6 @@ type Props = {
 };
 
 const split = (value: string, separator = ',') => (value ? value.split(separator) : []);
-const labelSize = (value: string) => value.replace('x', ' × ');
 const safePositive = (value: string) =>
   /^[1-9][0-9]*$/.test(value) && Number.isSafeInteger(Number(value));
 
@@ -206,7 +205,11 @@ export function SearchFilters({
       : '';
   const resolutions = exact ?? (minimum ? [minimum] : []);
   const resolutionPresets = [
-    ...new Set([...(screenResolution ? [screenResolution] : []), ...sizes, ...resolutions]),
+    ...new Set([
+      ...(screenResolution ? [screenResolution] : []),
+      ...wallpaperResolutions,
+      ...resolutions,
+    ]),
   ];
   const selectedRatios =
     effective.ratio === 'presets'
@@ -509,7 +512,9 @@ export function SearchFilters({
                   aria-pressed={resolutions.includes(size)}
                   onClick={() => addResolution(size, true)}
                 >
-                  {size === screenResolution ? `My screen · ${labelSize(size)}` : labelSize(size)}
+                  {size === screenResolution
+                    ? `My screen · ${labelResolution(size)}`
+                    : labelResolution(size)}
                 </Button>
               ))}
             </div>

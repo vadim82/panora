@@ -176,7 +176,12 @@ function ManifestEditor({
         : invalid
           ? `provider-field-${invalid.key}`
           : `provider-rule-${rules.rule_mode === 'inherit' ? 'rule-mode' : ruleError?.field}`;
-      requestAnimationFrame(() => document.getElementById(target)?.focus());
+      requestAnimationFrame(() => {
+        const field = document.getElementById(target);
+        const options = field?.closest('details');
+        if (options) options.open = true;
+        field?.focus();
+      });
       return;
     }
     let cleaned = { ...values };
@@ -243,6 +248,62 @@ function ManifestEditor({
       ? 'Save removed source as new'
       : `Add ${description?.name || 'source'}`;
 
+  const providerFields = manifest.groups.map((group) => (
+    <ProviderFields
+      key={group.id}
+      group={
+        isCommons
+          ? { ...group, fields: group.fields.filter((field) => field.key === 'collection') }
+          : group
+      }
+      values={values}
+      render={(field) => (
+        <ProviderField
+          key={field.key}
+          id={`provider-field-${field.key}`}
+          field={field}
+          value={values[field.key]}
+          error={showErrors ? fieldError(field, values[field.key]) : undefined}
+          suggest={
+            suggestions && mutable && ui.page === 'providers' ? lookup[field.key] : undefined
+          }
+          onChange={(value) =>
+            setEditor((current) => ({
+              ...current,
+              name:
+                isCommons &&
+                field.key === 'collection' &&
+                !input &&
+                [commonsFeaturedName, commonsSearchName].includes(current.name)
+                  ? commonsName(value)
+                  : current.name,
+              values: {
+                ...current.values,
+                [field.key]: field.control === 'integer' && value !== '' ? Number(value) : value,
+              },
+            }))
+          }
+        />
+      )}
+    />
+  ));
+  const sourceRules = (
+    <SourceRules
+      prefix="provider-rule"
+      provider={providerID}
+      inputID={input?.id || null}
+      revision={editor.revision}
+      enrolled={Boolean(existing && previewSource?.enabled && !dirtyValues)}
+      draft={rules}
+      inherited={config.rules}
+      disabled={!mutable || working}
+      validate={showErrors}
+      onChange={(patch) =>
+        setEditor((current) => ({ ...current, rules: { ...current.rules, ...patch } }))
+      }
+    />
+  );
+
   return (
     <div className="settings-panel source-editor manifest-source-editor">
       <form
@@ -278,49 +339,7 @@ function ManifestEditor({
               Send matching input prefixes to this provider for suggestions
             </label>
           )}
-          {manifest.groups.map((group) => (
-            <ProviderFields
-              key={group.id}
-              group={
-                isCommons
-                  ? { ...group, fields: group.fields.filter((field) => field.key === 'collection') }
-                  : group
-              }
-              values={values}
-              render={(field) => (
-                <ProviderField
-                  key={field.key}
-                  id={`provider-field-${field.key}`}
-                  field={field}
-                  value={values[field.key]}
-                  error={showErrors ? fieldError(field, values[field.key]) : undefined}
-                  suggest={
-                    suggestions && mutable && ui.page === 'providers'
-                      ? lookup[field.key]
-                      : undefined
-                  }
-                  onChange={(value) =>
-                    setEditor((current) => ({
-                      ...current,
-                      name:
-                        isCommons &&
-                        field.key === 'collection' &&
-                        !input &&
-                        [commonsFeaturedName, commonsSearchName].includes(current.name)
-                          ? commonsName(value)
-                          : current.name,
-                      values: {
-                        ...current.values,
-                        [field.key]:
-                          field.control === 'integer' && value !== '' ? Number(value) : value,
-                      },
-                    }))
-                  }
-                />
-              )}
-            />
-          ))}
-          {customCommons && (
+          {isCommons ? (
             <CommonsSearch
               values={values}
               disabled={!mutable || working}
@@ -330,22 +349,19 @@ function ManifestEditor({
                   values: { ...current.values, ...patch },
                 }))
               }
+              advanced={
+                <>
+                  {providerFields}
+                  {sourceRules}
+                </>
+              }
             />
+          ) : (
+            <>
+              {providerFields}
+              {sourceRules}
+            </>
           )}
-          <SourceRules
-            prefix="provider-rule"
-            provider={providerID}
-            inputID={input?.id || null}
-            revision={editor.revision}
-            enrolled={Boolean(existing && previewSource?.enabled && !dirtyValues)}
-            draft={rules}
-            inherited={config.rules}
-            disabled={!mutable || working}
-            validate={showErrors}
-            onChange={(patch) =>
-              setEditor((current) => ({ ...current, rules: { ...current.rules, ...patch } }))
-            }
-          />
           {!existing && (
             <label className="search-check">
               <input

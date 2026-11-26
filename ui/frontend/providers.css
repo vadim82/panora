@@ -635,6 +635,26 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
+.commons-options {
+  margin-block: 6px 12px;
+}
+.commons-options > summary {
+  width: fit-content;
+  cursor: pointer;
+}
+.commons-options[open] > summary {
+  margin-block-end: 8px;
+}
+.commons-approval-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-block: 10px;
+}
+.commons-approval-status > p {
+  margin: 0;
+}
 .commons-results {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 165px), 1fr));
@@ -663,6 +683,9 @@
   padding: 10px;
   overflow-wrap: anywhere;
 }
+.manifest-source-editor .commons-result-details .search-check {
+  margin-block: 4px 0;
+}
 .commons-result-details p {
   margin: 0;
 }
@@ -676,7 +699,7 @@
 }
 
 @media (max-width: 600px) {
-  .commons-search-terms {
+  .commons-search-fields {
     grid-template-columns: minmax(0, 1fr);
   }
 }

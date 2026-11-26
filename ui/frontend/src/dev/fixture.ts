@@ -653,7 +653,14 @@ export function installFixture(
       config.inputs = config.inputs?.filter(({ id }) => id !== edit.id);
       return saved();
     },
-    SuggestProviderInput: async () => ({ values: [] }),
+    SuggestProviderInput: async ({ provider_id, field, prefix }) => ({
+      values:
+        scenario === 'commons' && provider_id === 'wikimedia_commons' && field === 'category'
+          ? ['Canyons', 'Canyons of Utah', 'Rock formations'].filter((category) =>
+              category.toLowerCase().startsWith(prefix.toLowerCase()),
+            )
+          : [],
+    }),
     RemoveSearch: async (edit) => {
       const conflict = checkRevision(edit.revision);
       if (conflict) return conflict;

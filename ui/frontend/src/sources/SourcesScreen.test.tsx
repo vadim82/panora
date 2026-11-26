@@ -95,8 +95,14 @@ describe('source editors', () => {
     api.Configuration.mockResolvedValue({ configuration: commonsConfiguration });
     await ready();
     await add(user, 'Wikimedia Commons');
-    expect(screen.getByLabelText('Collection')).toHaveValue('search');
     expect(screen.getByLabelText('Name')).toHaveValue('Wikimedia Commons search');
+    expect(screen.getByLabelText('Resolution')).toHaveValue('');
+    const options = screen.getByText('More options').closest('details');
+    expect(options).toContainElement(screen.getByLabelText('Collection'));
+    expect(options).toContainElement(screen.getByRole('group', { name: 'Image rules' }));
+    expect(options).not.toHaveAttribute('open');
+    await user.click(screen.getByText('More options'));
+    expect(screen.getByLabelText('Collection')).toHaveValue('search');
     await user.selectOptions(screen.getByLabelText('Collection'), 'featured-landscapes');
     expect(screen.getByLabelText('Name')).toHaveValue('Featured landscapes');
     expect(screen.getByText(/contacts Wikimedia Commons/)).toBeVisible();
@@ -107,6 +113,7 @@ describe('source editors', () => {
     expect(api.SearchCommons).not.toHaveBeenCalled();
     await add(user, 'Wikimedia Commons');
     const editor = within(screen.getByRole('form', { name: 'Add Wikimedia Commons' }));
+    await user.click(editor.getByText('More options'));
     await user.selectOptions(editor.getByLabelText('Collection'), 'featured-landscapes');
     await user.click(editor.getByRole('button', { name: 'Add source' }));
     expect(api.AddProviderInput).toHaveBeenCalledExactlyOnceWith(
@@ -142,21 +149,35 @@ describe('source editors', () => {
     await ready();
     await add(user, 'Wikimedia Commons');
     const editor = within(screen.getByRole('form', { name: 'Add Wikimedia Commons' }));
-    await user.selectOptions(editor.getByLabelText('Collection'), 'search');
     await user.type(editor.getByLabelText('Search terms'), 'waterfall');
-    await user.type(editor.getByLabelText('Category'), 'Forests');
-    await user.selectOptions(editor.getByLabelText('Search resolution'), 'exact');
-    await user.type(editor.getByLabelText('Exact width'), '3840');
-    await user.type(editor.getByLabelText('Exact height'), '2160');
-    await user.selectOptions(editor.getByLabelText('File format'), 'jpeg');
+    await user.selectOptions(editor.getByLabelText('Resolution'), 'exact:3840x2160');
+    expect(editor.queryByLabelText('File format')).not.toBeInTheDocument();
+    await user.click(editor.getByText('More options'));
+    api.SuggestProviderInput.mockImplementation(async ({ prefix }) => ({
+      values: prefix === 'For' ? ['Forests', 'Forests in autumn'] : ['Waterfalls'],
+    }));
+    const categories = editor.getByRole('combobox', { name: 'Categories' });
+    await user.type(categories, 'For');
+    expect(await editor.findByRole('option', { name: 'Forests' })).toBeVisible();
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(editor.getByRole('button', { name: 'Remove Forests' })).toBeVisible();
+    expect(api.SuggestProviderInput).toHaveBeenCalledWith({
+      provider_id: 'wikimedia_commons',
+      field: 'category',
+      prefix: 'For',
+      limit: 10,
+    });
+    await user.type(categories, 'Wat');
+    await user.click(await editor.findByRole('option', { name: 'Waterfalls' }));
+    await user.type(categories, 'Temporary category{Enter}');
+    await user.click(editor.getByRole('button', { name: 'Remove Temporary category' }));
     expect(api.SearchCommons).not.toHaveBeenCalled();
     expect(editor.getByRole('button', { name: 'Add source' })).toBeDisabled();
     const criteria = {
       query: 'waterfall',
-      category: 'Forests',
+      categories: ['Forests', 'Waterfalls'],
       exact_width: 3840,
       exact_height: 2160,
-      format: 'jpeg',
     };
     await user.click(editor.getByRole('button', { name: 'Search Commons' }));
     const checkbox = await editor.findByRole('checkbox', { name: 'Approve Forest waterfall' });
@@ -203,18 +224,23 @@ describe('source editors', () => {
     await ready();
     await add(user, 'Wikimedia Commons');
     const editor = within(screen.getByRole('form', { name: 'Add Wikimedia Commons' }));
-    await user.selectOptions(editor.getByLabelText('Collection'), 'search');
     await user.type(editor.getByLabelText('Search terms'), 'forest');
     await user.click(editor.getByRole('button', { name: 'Search Commons' }));
     await user.click(await editor.findByRole('checkbox', { name: 'Approve Forest waterfall' }));
     expect(editor.getByRole('button', { name: 'Add source' })).toBeEnabled();
-    await user.type(editor.getByLabelText('Minimum width'), '1920');
+    await user.selectOptions(editor.getByLabelText('Resolution'), 'min:1920x1080');
     expect(editor.getByRole('button', { name: 'Add source' })).toBeDisabled();
     expect(
       editor.queryByRole('checkbox', { name: 'Approve Forest waterfall' }),
     ).not.toBeInTheDocument();
     expect(api.SearchCommons).toHaveBeenCalledTimes(1);
     expect(api.AddProviderInput).not.toHaveBeenCalled();
+    await user.click(editor.getByRole('button', { name: 'Search Commons' }));
+    expect(api.SearchCommons).toHaveBeenLastCalledWith({
+      query: 'forest',
+      min_width: 1920,
+      min_height: 1080,
+    });
   });
   it('shows saved counts and debounced draft matches together in Source status', async () => {
     const api = installBridge();

@@ -1,23 +1,35 @@
 import { useRef, useState } from 'react';
-import type { MouseEvent } from 'react';
-import { usePanora } from '../client';
-import {
-  Button,
-  Field,
-  FormActions,
-  Notice,
-  NumberInput,
-  Select,
-  TextInput,
-} from '../components/ui';
+import type { MouseEvent, ReactNode } from 'react';
+import { bridge, usePanora } from '../client';
+import { Button, Field, FormActions, Notice, Select, TextInput } from '../components/ui';
 import {
   commonsApprovals,
-  commonsResolutionMode,
+  commonsCategories,
+  commonsCategoryError,
+  commonsID,
+  commonsResolutionChoice,
+  commonsResolutionPatch,
   commonsSearchRequest,
   maxCommonsApprovals,
 } from './commonsSearch';
 import type { CommonsSearchPage, CommonsSearchResult } from './commonsSearch';
-import type { ProviderValues } from './providerManifest';
+import { ProviderField } from './ProviderFields';
+import type { EditorField, ProviderValues } from './providerManifest';
+import { labelResolution, wallpaperResolutions } from './wallpaperResolutions';
+
+const categoryField: EditorField = {
+  key: 'category',
+  label: 'Categories',
+  control: 'multivalue',
+  help: 'Files must match every category. Typing loads suggestions from Wikimedia Commons.',
+};
+
+async function suggestCategories(prefix: string) {
+  const result = await bridge('SuggestProviderInput', [
+    { provider_id: commonsID, field: 'category', prefix, limit: 10 },
+  ]);
+  return result.values ?? [];
+}
 
 function externalPage(value: string, origin: string, prefix: string) {
   try {
@@ -61,7 +73,15 @@ function ResultCard({
         <p className="subtext commons-thumbnail-placeholder">Thumbnail unavailable</p>
       )}
       <div className="commons-result-details">
-        <strong>{result.title}</strong>
+        <strong>
+          {page ? (
+            <a href={page} target="_blank" rel="noreferrer" onClick={openFile}>
+              {result.title}
+            </a>
+          ) : (
+            result.title
+          )}
+        </strong>
         <p className="subtext">
           {result.width} × {result.height} ·{' '}
           {license ? (
@@ -73,11 +93,6 @@ function ResultCard({
           )}
         </p>
         <p className="subtext">{result.author}</p>
-        {page && (
-          <a href={page} target="_blank" rel="noreferrer" onClick={openFile}>
-            View file on Commons
-          </a>
-        )}
         <label className="search-check">
           <input
             type="checkbox"
@@ -99,17 +114,23 @@ interface SearchResults extends CommonsSearchPage {
 }
 
 export function CommonsSearch({
+  advanced,
   values,
   disabled,
   onChange,
 }: {
+  advanced: ReactNode;
   values: ProviderValues;
   disabled: boolean;
   onChange(value: ProviderValues): void;
 }) {
   const ui = usePanora();
   const approved = commonsApprovals(values);
-  const mode = commonsResolutionMode(values);
+  const custom = values.collection === 'search';
+  const resolution = commonsResolutionChoice(values);
+  const [mode, size = ''] = resolution.split(':');
+  const [width, height] = size.split('x');
+  const savedSize = size && !wallpaperResolutions.includes(size);
   const { request, error } = commonsSearchRequest(values);
   const instance = ui.snapshot?.status?.instance_id;
   const scope = JSON.stringify([instance, request]);
@@ -120,7 +141,7 @@ export function CommonsSearch({
   const searchButton = useRef<HTMLButtonElement>(null);
   const visibleResults = results?.scope === scope ? results : undefined;
   const feedbackText = feedback?.scope === scope ? feedback.text : '';
-  const prefix = mode === 'exact' ? 'exact' : 'min';
+
   const text = (key: string) => {
     const value = values[key];
     return typeof value === 'string' || typeof value === 'number' ? value : '';
@@ -169,101 +190,105 @@ export function CommonsSearch({
   }
 
   return (
-    <fieldset className="provider-field-group commons-search" disabled={disabled || working}>
-      <legend>Search filters</legend>
-      <div className="commons-search-fields commons-search-terms">
-        <Field htmlFor="commons-query">
-          Search terms
-          <TextInput
-            id="commons-query"
-            value={text('query')}
-            maxLength={240}
-            onChange={(event) => change({ query: event.target.value })}
-          />
-        </Field>
-        <Field htmlFor="commons-category" help="Use the name without the Category: prefix.">
-          Category
-          <TextInput
-            id="commons-category"
-            value={text('category')}
-            maxLength={200}
-            onChange={(event) => change({ category: event.target.value })}
-          />
-        </Field>
-      </div>
-      <div className="commons-search-fields">
-        <Field htmlFor="commons-resolution">
-          Search resolution
-          <Select
-            id="commons-resolution"
-            value={mode}
-            onChange={(event) =>
-              change({
-                resolution_mode: event.target.value,
-                exact_width: undefined,
-                exact_height: undefined,
-                min_width: undefined,
-                min_height: undefined,
-              })
-            }
-          >
-            <option value="minimum">Minimum size</option>
-            <option value="exact">Exact resolution</option>
-          </Select>
-        </Field>
-        <Field htmlFor="commons-format">
-          File format
-          <Select
-            id="commons-format"
-            value={text('format')}
-            onChange={(event) => change({ format: event.target.value })}
-          >
-            <option value="">JPEG and PNG</option>
-            <option value="jpeg">JPEG</option>
-            <option value="png">PNG</option>
-          </Select>
-        </Field>
-      </div>
-      <div className="commons-search-fields">
-        {(['width', 'height'] as const).map((dimension) => {
-          const id = `commons-${dimension}`;
-          const key = `${prefix}_${dimension}`;
-          return (
-            <Field htmlFor={id} key={id}>
-              {mode === 'exact' ? 'Exact' : 'Minimum'} {dimension}
-              <NumberInput
-                id={id}
-                value={text(key)}
-                min={1}
-                max={65535}
-                onChange={(event) => change({ [key]: event.target.value })}
+    <fieldset
+      className="commons-search"
+      aria-label="Wikimedia Commons"
+      disabled={disabled || working}
+    >
+      {custom ? (
+        <>
+          <div className="commons-search-fields">
+            <Field htmlFor="commons-query">
+              Search terms
+              <TextInput
+                id="commons-query"
+                value={text('query')}
+                maxLength={240}
+                onChange={(event) => change({ query: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                    void search();
+                  }
+                }}
               />
             </Field>
-          );
-        })}
-      </div>
-      <p className="subtext">
-        Search sends these filters to Wikimedia Commons. Review the images and reuse terms, then
-        approve files before saving them to rotation.
-      </p>
-      <FormActions>
-        <Button
-          ref={searchButton}
-          pending={working}
-          disabled={disabled}
-          onClick={() => void search()}
-        >
-          {working ? 'Searching Commons…' : 'Search Commons'}
-        </Button>
-        {approved.length > 0 && (
-          <Button onClick={() => onChange({ approved: [] })}>Clear approvals</Button>
+            <Field htmlFor="commons-resolution">
+              Resolution
+              <Select
+                id="commons-resolution"
+                value={resolution}
+                onChange={(event) => change(commonsResolutionPatch(event.target.value))}
+              >
+                <option value="">Any size</option>
+                {(['min', 'exact'] as const).map((match) => (
+                  <optgroup key={match} label={match === 'min' ? 'At least' : 'Exact'}>
+                    {wallpaperResolutions.map((preset) => (
+                      <option key={preset} value={`${match}:${preset}`}>
+                        {match === 'min' ? '≥ ' : ''}
+                        {labelResolution(preset)}
+                      </option>
+                    ))}
+                    {savedSize && match === mode && (
+                      <option value={resolution}>
+                        {match === 'min' ? '≥ ' : ''}
+                        {width && height
+                          ? labelResolution(size)
+                          : width
+                            ? `${width} px wide`
+                            : `${height} px tall`}
+                      </option>
+                    )}
+                  </optgroup>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <FormActions>
+            <Button
+              ref={searchButton}
+              pending={working}
+              disabled={disabled}
+              onClick={() => void search()}
+            >
+              {working ? 'Searching Commons…' : 'Search Commons'}
+            </Button>
+          </FormActions>
+          {feedbackText && <Notice tone="error">{feedbackText}</Notice>}
+        </>
+      ) : (
+        <p className="subtext">
+          Use the reviewed Featured landscapes collection from Wikimedia Commons.
+        </p>
+      )}
+      <details className="commons-options">
+        <summary>More options</summary>
+        {custom && (
+          <ProviderField
+            id="commons-category"
+            field={categoryField}
+            value={commonsCategories(values)}
+            suggest={disabled ? undefined : suggestCategories}
+            addLabel="Add category"
+            validateValue={commonsCategoryError}
+            onChange={(categories) => change({ category: undefined, categories })}
+          />
         )}
-      </FormActions>
-      {feedbackText && <Notice tone="error">{feedbackText}</Notice>}
-      <p className="subtext" role="status">
-        {approved.length} of {maxCommonsApprovals} files approved
-      </p>
-      {visibleResults && (
+        {advanced}
+      </details>
+      {custom && (visibleResults || approved.length > 0) && (
+        <div className="commons-approval-status">
+          <p className="subtext" role="status">
+            {approved.length > 0
+              ? `${approved.length} of ${maxCommonsApprovals} files approved`
+              : 'Approve the files you want to include in rotation.'}
+          </p>
+          {approved.length > 0 && (
+            <Button onClick={() => onChange({ approved: [] })}>Clear approvals</Button>
+          )}
+        </div>
+      )}
+      {custom && visibleResults && (
         <>
           {visibleResults.results.length > 0 ? (
             <ul className="commons-results" aria-label="Commons search results">
