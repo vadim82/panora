@@ -453,7 +453,7 @@ export function installFixture(
         },
       };
     },
-    WindowAccent: async () => '',
+    WindowPalette: async () => null,
     EditOmarchyTheme: async () => ({ error: 'Connect to a native Omarchy session.' }),
     OmarchyThemePreview: async () => ({}),
     ThemePalette: async () => ({ colors: ['#0066cc', '#66cccc', '#424153'] }),

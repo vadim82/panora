@@ -719,17 +719,21 @@ summary {
 
 /* Selection remains distinct when the pointer hovers another destination. */
 nav button[aria-current] {
-  border-color: var(--window-primary, var(--accent));
-  box-shadow: inset 0 -2px var(--window-primary, var(--accent));
+  border-color: var(--accent);
+  box-shadow: inset 0 -2px var(--accent);
   font-weight: 600;
 }
 
 .primary {
-  background: var(--window-primary, var(--accent));
-  color: var(--window-primary-ink, var(--accent-ink));
-  border-color: var(--window-primary, var(--accent));
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
 }
 .primary:hover:not(:disabled) {
-  background: var(--window-primary-hover, var(--accent-hover));
-  border-color: var(--window-primary-hover, var(--accent-hover));
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+[data-window-palette='omarchy'] .search-filter-rail .ui-button[aria-pressed='true'] {
+  border-color: var(--accent);
 }
