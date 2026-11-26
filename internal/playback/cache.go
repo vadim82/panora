@@ -188,7 +188,7 @@ func (s *Service) materializeImage(ctx context.Context, choice playbackChoice, c
 	}
 	choice.path = result.Path
 	choice.hash = result.Hash
-	metadata := imageOrigin(choice.identity.ProviderID, candidate)
+	metadata := imageOrigin(choice.identity, candidate)
 	metadata.Dimensions = &source.Dimensions{Width: result.Width, Height: result.Height}
 	choice.image = &metadata
 	return choice, nil

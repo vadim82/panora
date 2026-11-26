@@ -11,6 +11,10 @@ Item {
     property var snapshot: Model.disconnected()
     property var detailImage: null
     property string detailKey: ""
+    property var flow: null
+    property string flowKey: ""
+    property double flowReadAt: 0
+    property int previewGeneration: 0
     property string actionError: ""
     property bool actionInFlight: false
     property string pendingAction: ""
@@ -20,11 +24,18 @@ Item {
     property string requestKind: "snapshot"
     property int requestGeneration: 0
     property bool requestPreview: false
+    property bool requestFlow: false
+    property int requestPreviewGeneration: 0
     property string response: ""
     property bool outputInvalid: false
     property int diagnosticBytes: 0
     readonly property string currentKey: Model.imageKey(snapshot)
     readonly property var displayedImage: detailImage
+    readonly property string currentFlowKey: currentKey && snapshot.flow_revision
+        ? currentKey + "/" + snapshot.flow_revision : ""
+    readonly property bool showFlow: previewWanted && !actionError && !!flow && flowKey === currentFlowKey
+    readonly property var previousPreview: showFlow ? flow.previous : null
+    readonly property var nextPreview: showFlow ? flow.next : null
     readonly property bool observing: process.running
 
     function validSettings() {
@@ -36,7 +47,7 @@ Item {
         if (action === "stop" && root.uiExecutable) args = [root.uiExecutable, "--quit"];
         if (action) args.push("--instance", root.pendingInstance);
         if (root.socket) args.push("--socket", root.socket);
-        if (!action && preview) args.push("--preview");
+        if (!action && preview) args.push(requestFlow ? "--cover-flow" : "--preview");
         return args;
     }
     function begin(action, preview) {
@@ -44,6 +55,8 @@ Item {
         requestKind = action || "snapshot";
         requestGeneration = generation;
         requestPreview = preview;
+        requestFlow = preview && !!currentFlowKey;
+        requestPreviewGeneration = previewGeneration;
         response = "";
         outputInvalid = false;
         diagnosticBytes = 0;
@@ -57,6 +70,7 @@ Item {
     }
     function retryPreview() {
         detailKey = "";
+        clearFlow();
         actionError = "";
         refresh();
     }
@@ -68,6 +82,11 @@ Item {
         // Reconcile the service identity before issuing one explicit action.
         refresh();
     }
+    function clearFlow() {
+        flow = null;
+        flowKey = "";
+        flowReadAt = 0;
+    }
     function reset() {
         generation++;
         pendingAction = "";
@@ -76,6 +95,7 @@ Item {
         detailImage = null;
         detailKey = "";
         snapshot = Model.disconnected();
+        clearFlow();
         if (process.running) process.signal(9);
         else Qt.callLater(refresh);
     }
@@ -93,7 +113,15 @@ Item {
             if (!value.image) detailImage = null;
         }
         // Disconnection keeps only explicitly labeled last-known image data.
+        var newFlow = value.flow;
+        delete value.flow;
         snapshot = value;
+        if (flowKey !== currentFlowKey) clearFlow();
+        if (newFlow) {
+            flow = newFlow;
+            flowKey = currentFlowKey;
+            flowReadAt = Date.now();
+        }
     }
     function finished(code) {
         deadline.stop();
@@ -104,10 +132,17 @@ Item {
         if (requestKind !== "snapshot") {
             actionInFlight = false;
             actionError = code === 0 && !outputInvalid && Model.actionSucceeded(response, pendingInstance, requestKind) ? "" : "actionUnconfirmed";
+            if (actionError) clearFlow();
             Qt.callLater(refresh);
             return;
         }
-        var value = code === 0 && !outputInvalid ? Model.parse(response) : null;
+        if (requestPreview && requestPreviewGeneration !== previewGeneration) {
+            response = "";
+            Qt.callLater(refresh);
+            return;
+        }
+        var value = code === 0 && !outputInvalid ? Model.parse(response, requestFlow) : null;
+        response = "";
         accept(value || Model.disconnected());
         if (pendingAction) {
             var action = pendingAction;
@@ -118,14 +153,23 @@ Item {
                 actionInFlight = false;
                 actionError = "actionUnconfirmed";
             }
-        } else if (!requestPreview && previewWanted && currentKey && detailKey !== currentKey) {
+        } else if (!requestPreview && previewWanted && currentKey &&
+                   (detailKey !== currentKey || (currentFlowKey && !actionError &&
+                    (flowKey !== currentFlowKey || Date.now() - flowReadAt >= 10000)))) {
             begin("", true);
         }
     }
     onSocketChanged: if (ready) reset()
     onExecutableChanged: if (ready) reset()
     onUiExecutableChanged: if (ready) reset()
-    onPreviewWantedChanged: if (previewWanted) retryPreview()
+    onPreviewWantedChanged: {
+        previewGeneration++;
+        if (previewWanted) retryPreview();
+        else {
+            clearFlow();
+            if (requestPreview && process.running) process.signal(9);
+        }
+    }
     Component.onCompleted: { ready = true; Qt.callLater(refresh); }
     Component.onDestruction: { if (process.running) process.signal(9); }
 
@@ -137,7 +181,7 @@ Item {
             splitMarker: ""
             onRead: function(data) {
                 if (root.outputInvalid) return;
-                if (data.length > 3 * 1024 * 1024 - root.response.length) {
+                if (data.length > Model.snapshotLimit(root.requestFlow) - root.response.length) {
                     root.outputInvalid = true;
                     root.response = "";
                     process.signal(9);

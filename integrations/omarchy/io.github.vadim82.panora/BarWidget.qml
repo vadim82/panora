@@ -131,6 +131,8 @@ Ui.BarWidget {
             controller: transport
             displaying: root.opened
             cliConfigured: root.cliExecutable !== ""
+            canOpenWindow: root.uiExecutable !== ""
+            onOpenRequested: root.launchWindow(false)
             onCloseRequested: root.close()
             onMenuRequested: root.toggleMenu()
         }

@@ -40,7 +40,8 @@ type Service struct {
 	warnings               []string
 	statusMu               sync.RWMutex
 	status                 Status
-	desktopWarning         string // Guarded by statusMu; observer diagnostics only.
+	sourceNames            map[sourceNameKey]string // Guarded by statusMu.
+	desktopWarning         string                   // Guarded by statusMu; observer diagnostics only.
 	wake                   chan struct{}
 	fatal                  chan error
 	cancel                 context.CancelFunc
@@ -120,6 +121,7 @@ func newService(ctx context.Context, options ServiceOptions, resolve Resolver, c
 	s := &Service{
 		instanceID:    rand.Text(),
 		status:        Status{SetupRequired: !config.HasEnabledInputs()},
+		sourceNames:   configuredSourceNames(config),
 		exclusions:    exclusions,
 		currentHash:   currentHash,
 		currentImage:  currentImage,
@@ -193,6 +195,12 @@ func (s *Service) Status() Status {
 	}
 	if status.CurrentImage != nil {
 		status.CurrentImage = status.CurrentImage.clone()
+		if status.Current != nil && status.CurrentImage.Provider != omarchyProvider {
+			status.CurrentImage.SourceName = s.sourceNames[sourceNameKey{status.CurrentImage.Provider, status.Current.SourceID}]
+		}
+		if index := editorIndex(s.request.ProviderEditors, status.CurrentImage.Provider); index >= 0 {
+			status.CurrentImage.ProviderName = s.request.ProviderEditors[index].Name
+		}
 	}
 	for _, entry := range []**HistoryReference{
 		&status.PreviousHistory, &status.ForwardHistory, &status.PreviousBeyond, &status.ForwardBeyond, &status.PreparedBeyond,
@@ -279,11 +287,15 @@ func (s *Service) publishStatus() {
 	s.statusMu.Unlock()
 }
 
-// Configuration discovery can change setup state without taking playback ownership.
-func (s *Service) setSetupRequired(required bool) {
+// Configuration discovery can refresh labels and setup state without taking
+// playback ownership. Status readers only consult the published names.
+func (s *Service) observeSourceConfig(config Config) {
+	names := configuredSourceNames(config)
+	required := !config.HasEnabledInputs()
 	s.statusMu.Lock()
 	changed := s.status.SetupRequired != required
 	s.status.SetupRequired = required
+	s.sourceNames = names
 	s.statusMu.Unlock()
 	if changed {
 		s.notify()
@@ -486,7 +498,7 @@ func (s *Service) chooseImage(ctx context.Context, offset int) (playbackChoice, 
 	if err != nil {
 		return playbackChoice{}, false, invalidSavedConfiguration()
 	}
-	s.setSetupRequired(!config.HasEnabledInputs())
+	s.observeSourceConfig(config)
 	if !config.HasEnabledInputs() {
 		return playbackChoice{}, false, &Error{Code: "setup_required", Message: "add or enable a wallpaper source to begin playback"}
 	}

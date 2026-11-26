@@ -1,10 +1,14 @@
 # Omarchy shell client
 
 `io.github.vadim82.panora/` is a native Quickshell bar-widget plugin for the current Omarchy
-shell plugin API. The popup shows the last accepted image, a row with Previous,
-Play/Pause and Next, and service or recovery feedback. The preview fits the
-complete image within the available space. The bar icon and popup use the shared
-`qs.Ui` and `qs.Commons` kit and update their colors when the active theme changes.
+shell plugin API. The popup shows the last accepted image in the center and
+cached Previous and Next cards when available. Click a card to change wallpaper.
+The arrows stay in the strip when navigation is available, including when a
+thumbnail is missing. The strip scales with the popup. Rotation controls and
+service feedback sit below the preview. **Open Panora** opens the
+main window when its executable is configured. The bar icon and popup use the
+shared `qs.Ui` and `qs.Commons` kit for the active theme's colors, typography and
+controls.
 
 ## Install from the Marketplace
 
@@ -167,16 +171,22 @@ Panora clients.
 ## Requests and keyboard controls
 
 The controller runs at most one bounded subprocess. It observes small JSON v1
-snapshots every five seconds while closed and two seconds while open. It requests
-image details and a cached preview only while open and when the image changes,
-details are missing, or the user selects **Check status**. Response retention stops at 3 MiB while reading,
-with a 7.5-second read deadline. Stderr is drained without retention and
+snapshots every five seconds while closed and two seconds while open. While the
+preview is open, it requests the accepted image and cached neighbors on open,
+on a preview identity change, or when the user selects **Check status**. It
+revalidates the strip about every ten seconds while open. Closing drops the
+neighbor images and cancels an in-progress preview read. Response retention
+stops at 3 MiB for ordinary requests and 9 MiB for Cover Flow reads, with a
+7.5-second read deadline. Stderr is drained without retention and
 the child is terminated above 64 KiB. Actions have a 35-second deadline.
 The controller checks fresh status, then sends the observed service ID with
 the action. A replacement service rejects the request. Finish an unconfirmed
 action by checking status before trying again. Preview details are
 keyed by service instance, image ID and history entry. Disconnection retains only
-labeled last-known data; a new authoritative identity clears it.
+labeled last-known data. A new authoritative identity clears it. The side cards
+follow the service's current history position. Next prefers the service's
+prepared choice, including after forward history ends. After acknowledgement,
+the new center image slides into place. The animation follows Omarchy's reduced-motion setting.
 
 See the [snapshot schema](../../docs/socket-api.md#thin-shell-snapshot-json-v1).
 All dynamic labels use `Text.PlainText`; tooltips are static translated UI text.
@@ -184,15 +194,19 @@ Navigation and playback commands remain owned by the service, which enforces
 readiness/busy/uncertainty and acceptance. Closing/unloading the widget never
 stops playback or starts an additional service. The popup starts on Next
 when available, Check status when a status check can help, or Close when the
-other controls are unavailable. Tab and Shift-Tab move between enabled controls.
-Click the bar icon or press Enter or Space when it has keyboard focus to toggle
-the popup. Escape or a click outside dismisses the popup or the context menu.
+other controls are unavailable. Left and Right navigate one step from anywhere
+in the focused wallpaper popup. Hover over a navigation card or arrow to see its
+keyboard shortcut. Tab and Shift-Tab move between cards and controls. Enter
+or Space activates a focused card or arrow. Click the bar icon or press Enter
+or Space when it has keyboard focus to toggle the popup. Escape or a click
+outside dismisses the popup or the context menu.
 When an open popup regains focus, the selected control receives focus again.
 Up, Down, Tab and Shift-Tab navigate the context menu. Enter and Space activate
 its focused action. **Open Panora** opens the app against the same service and
 **About Panora** opens its version information.
-The Play/Pause icon shows the rotation state. Below the controls, **Working…**
-shows playback progress and **Next change** shows the next scheduled attempt
+Use **Pause rotation** or **Resume rotation** to change the rotation state.
+Below the rotation control, **Working…** shows playback progress and
+**Next change** shows the next scheduled attempt
 when available. The notice box shows warnings and errors.
 
 Checks:

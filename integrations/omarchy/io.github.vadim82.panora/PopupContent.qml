@@ -9,8 +9,11 @@ FocusScope {
     required property var controller
     property bool displaying: true
     property bool cliConfigured: true
+    property bool canOpenWindow: false
     readonly property var status: controller.snapshot
     readonly property var image: controller.displayedImage
+    readonly property bool canPrevious: Model.allowed(status, "previous") && !controller.actionInFlight
+    readonly property bool canNext: Model.allowed(status, "next") && !controller.actionInFlight
     readonly property string modeKey: cliConfigured ? Model.stateKey(status) : "executableRequired"
     readonly property bool canRefresh: cliConfigured && !controller.actionInFlight &&
         (!!controller.actionError || !status.connected || status.warning)
@@ -29,26 +32,26 @@ FocusScope {
     }
     signal closeRequested()
     signal menuRequested()
+    signal openRequested()
     implicitHeight: column.implicitHeight
     Accessible.role: Accessible.Grouping
     Accessible.name: "Panora"
+    Keys.priority: Keys.AfterItem
     Keys.onEscapePressed: function(event) { root.closeRequested(); event.accepted = true; }
     Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && event.modifiers === Qt.ShiftModifier)) {
             root.menuRequested();
             event.accepted = true;
+        } else if (root.displaying && event.modifiers === Qt.NoModifier &&
+                   (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+            var previous = event.key === Qt.Key_Left;
+            if (!event.isAutoRepeat && (previous ? root.canPrevious : root.canNext))
+                root.controller.act(previous ? "previous" : "next");
+            event.accepted = true;
         }
-    }
-    function accentLabelColor(accent) {
-        function linear(channel) {
-            return channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
-        }
-        var luminance = 0.2126 * linear(accent.r) + 0.7152 * linear(accent.g) + 0.0722 * linear(accent.b);
-        // Black and white have equal contrast at this luminance.
-        return luminance > 0.179 ? "black" : "white";
     }
     function focusFirst() {
-        if (nextButton.enabled) nextButton.forceActiveFocus();
+        if (root.canNext) flow.focusCard("next");
         else if (refreshButton.enabled) refreshButton.forceActiveFocus();
         else closeButton.forceActiveFocus();
     }
@@ -68,8 +71,10 @@ FocusScope {
             Panora.PlainText {
                 width: parent.width - closeButton.width - parent.spacing
                 text: "Panora"
-                font.family: "serif"
-                font.pixelSize: Commons.Style.space(26)
+                font.pixelSize: Commons.Style.font.heading
+                font.weight: Font.DemiBold
+                maximumLineCount: 1
+                elide: Text.ElideRight
                 anchors.verticalCenter: parent.verticalCenter
             }
             Button {
@@ -87,137 +92,111 @@ FocusScope {
         }
         Panora.PlainText {
             width: parent.width
-            text: root.status.connected ? strings.t("lastAccepted") : strings.t("lastKnown")
-            font.pixelSize: Commons.Style.space(10)
-            font.letterSpacing: 1
+            visible: !root.status.connected && !!root.image
+            text: strings.t("lastKnown")
+            horizontalAlignment: Text.AlignHCenter
+            font.pixelSize: Commons.Style.font.caption
             opacity: .8
         }
-        Rectangle {
+        Panora.CoverFlow {
+            id: flow
             width: parent.width
-            height: Commons.Style.space(168)
-            color: Commons.Color.popups.background
-            radius: Commons.Style.cornerRadius
-            Image {
-                id: picture
-                anchors.fill: parent
-                anchors.margins: Commons.Style.space(2)
-                source: root.displaying && root.image && root.image.data_uri ? root.image.data_uri : ""
-                sourceSize.width: 512
-                sourceSize.height: 512
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true
-                cache: false
-                Accessible.role: Accessible.Graphic
-                Accessible.name: strings.t("previewDescription")
-            }
-            Panora.PlainText {
-                anchors.fill: parent
-                anchors.margins: Commons.Style.space(14)
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                visible: picture.status !== Image.Ready
-                text: root.image ? strings.t("previewUnavailable") : strings.t("noImage")
-            }
+            height: Math.min(Commons.Style.space(156), width * 156 / 360)
+            current: root.displaying ? root.image : null
+            instance: root.displaying ? root.status.instance_id || "" : ""
+            previous: root.displaying ? root.controller.previousPreview : null
+            next: root.displaying ? root.controller.nextPreview : null
+            showPrevious: root.status.connected && root.status.can_previous && !root.status.setup_required
+            showNext: root.status.connected && !root.status.setup_required
+            showNextPlaceholder: showNext && !!root.image && root.displaying
+            previousEnabled: root.canPrevious
+            nextEnabled: root.canNext
+            previousLabel: strings.t("previousWallpaper")
+            nextLabel: strings.t("next")
+            currentLabel: strings.t("previewDescription")
+            fallback: root.image ? strings.t("previewUnavailable") : strings.t("noImage")
+            onNavigate: function(action) { root.controller.act(action); }
         }
         Column {
             width: parent.width
             spacing: Commons.Style.space(4)
             Panora.PlainText {
                 width: parent.width
-                text: root.image ? root.image.title : strings.t("noImage")
-                font.family: "serif"
-                font.pixelSize: Commons.Style.space(23)
-                maximumLineCount: 2
-                elide: Text.ElideRight
-            }
-            Panora.PlainText {
-                width: parent.width
                 visible: !!root.image
-                text: root.image ? root.image.origin : ""
-                font.pixelSize: Commons.Style.space(12)
+                text: root.image ? root.image.title : ""
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: Commons.Style.font.heading
+                font.weight: Font.DemiBold
+                maximumLineCount: 2
+                elide: Text.ElideRight
+            }
+            Panora.PlainText {
+                width: parent.width
+                visible: text !== ""
+                text: {
+                    if (!root.image) return "";
+                    var ratio = Model.aspectRatio(root.image.width, root.image.height);
+                    if (!ratio) return "";
+                    var dimensions = strings.t("dimensions").arg(Commons.I18n.formatNumber(root.image.width)).arg(Commons.I18n.formatNumber(root.image.height));
+                    return dimensions + " · " + ratio;
+                }
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: Commons.Style.font.bodySmall
                 opacity: .8
                 maximumLineCount: 2
                 elide: Text.ElideRight
             }
             Panora.PlainText {
                 width: parent.width
-                visible: !!root.image && root.image.width > 0 && root.image.height > 0
-                text: root.image ? strings.t("dimensions").arg(Commons.I18n.formatNumber(root.image.width)).arg(Commons.I18n.formatNumber(root.image.height)) : ""
-                font.pixelSize: Commons.Style.space(11)
+                visible: text !== ""
+                text: root.image && root.image.origin ? (root.image.source_name
+                    ? root.image.origin + " · " + root.image.source_name
+                    : root.image.origin) : ""
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: Commons.Style.font.bodySmall
                 opacity: .8
+                maximumLineCount: 2
+                elide: Text.ElideRight
             }
         }
-        Row {
-            id: controls
-            width: parent.width
-            height: Math.max(previousButton.implicitHeight, rotationButton.implicitHeight, nextButton.implicitHeight)
-            spacing: Commons.Style.space(7)
-            readonly property real navigationWidth: (width - rotationButton.width - spacing * 2) / 2
-            Button {
-                id: previousButton
-                width: controls.navigationWidth
-                height: controls.height
-                verticalPadding: Commons.Style.space(10)
-                text: "‹ " + strings.t("previous")
-                foreground: Commons.Color.popups.text
-                bordered: true
-                focusable: true
-                enabled: Model.allowed(root.status, "previous") && !root.controller.actionInFlight
-                opacity: enabled ? 1 : .45
-                tooltipText: strings.t("previousWallpaper")
-                Accessible.role: Accessible.Button
-                Accessible.name: tooltipText
-                Accessible.onPressAction: root.controller.act("previous")
-                onClicked: root.controller.act("previous")
-            }
-            Button {
-                id: rotationButton
-                width: Math.min(Commons.Style.space(51), controls.width / 3)
-                height: controls.height
-                verticalPadding: Commons.Style.space(10)
-                iconText: root.status.paused ? "▶" : "❚❚"
-                foreground: Commons.Color.popups.text
-                bordered: true
-                focusable: true
-                readonly property string action: root.status.paused ? "resume" : "pause"
-                enabled: Model.allowed(root.status, action) && !root.controller.actionInFlight
-                opacity: enabled ? 1 : .45
-                tooltipText: strings.t(action)
-                Accessible.role: Accessible.Button
-                Accessible.name: tooltipText
-                Accessible.onPressAction: root.controller.act(action)
-                onClicked: root.controller.act(action)
-            }
-            Rectangle {
-                width: controls.navigationWidth
-                height: controls.height
-                radius: Commons.Style.cornerRadius
-                color: Commons.Color.accent
-                opacity: nextButton.enabled ? 1 : .45
-                Button {
-                    id: nextButton
-                    anchors.fill: parent
-                    verticalPadding: Commons.Style.space(10)
-                    text: strings.t("nextShort") + " ›"
-                    foreground: root.accentLabelColor(Commons.Color.accent)
-                    bordered: true
-                    focusable: true
-                    enabled: Model.allowed(root.status, "next") && !root.controller.actionInFlight
-                    tooltipText: strings.t("next")
-                    Accessible.role: Accessible.Button
-                    Accessible.name: tooltipText
-                    Accessible.onPressAction: root.controller.act("next")
-                    onClicked: root.controller.act("next")
-                }
-            }
+        Button {
+            id: rotationButton
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: Math.min(parent.width, implicitWidth)
+            iconText: root.status.paused ? "▶" : "❚❚"
+            text: tooltipText
+            foreground: Commons.Color.popups.text
+            bordered: true
+            focusable: true
+            readonly property string action: root.status.paused ? "resume" : "pause"
+            enabled: Model.allowed(root.status, action) && !root.controller.actionInFlight
+            opacity: enabled ? 1 : .45
+            tooltipText: strings.t(action)
+            Accessible.role: Accessible.Button
+            Accessible.name: tooltipText
+            Accessible.onPressAction: root.controller.act(action)
+            onClicked: root.controller.act(action)
         }
         Panora.PlainText {
             width: parent.width
             visible: text !== ""
             horizontalAlignment: Text.AlignHCenter
-            font.pixelSize: Commons.Style.space(11)
+            font.pixelSize: Commons.Style.font.bodySmall
             text: root.modeText
             opacity: .85
+        }
+        Button {
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: Math.min(parent.width, implicitWidth)
+            visible: root.canOpenWindow
+            text: strings.t("open")
+            foreground: Commons.Color.popups.text
+            fontSize: Commons.Style.font.bodySmall
+            focusable: true
+            Accessible.role: Accessible.Button
+            Accessible.name: text
+            Accessible.onPressAction: root.openRequested()
+            onClicked: root.openRequested()
         }
         Rectangle {
             width: parent.width
@@ -234,7 +213,7 @@ FocusScope {
                 anchors.top: parent.top
                 anchors.margins: Commons.Style.space(10)
                 text: root.noticeKey ? strings.t(root.noticeKey) : ""
-                font.pixelSize: Commons.Style.space(12)
+                font.pixelSize: Commons.Style.font.body
                 Accessible.role: Accessible.StaticText
                 Accessible.name: text
             }

@@ -5,7 +5,18 @@ import Quickshell
 import "Panora" as Panora
 
 ShellRoot {
-    Timer { interval: 100; running: true; onTriggered: keyboard.checkControls() }
+    Timer {
+        interval: 100
+        running: true
+        onTriggered: {
+            try {
+                keyboard.checkControls();
+            } catch (error) {
+                console.error(error.stack);
+                Qt.exit(1);
+            }
+        }
+    }
     Window {
         id: window
         visible: true
@@ -15,11 +26,14 @@ ShellRoot {
             id: transport
             property var snapshot: ({connected:true,instance_id:"one",paused:true,busy:false,uncertain:false,setup_required:false,can_previous:true,warning:false})
             property var displayedImage: null
+            property var previousPreview: null
+            property var nextPreview: null
             property bool actionInFlight: false
             property string actionError: ""
             property string lastAction: ""
+            property int actions: 0
             property int refreshes: 0
-            function act(name) { lastAction = name; }
+            function act(name) { lastAction = name; actions++; }
             function retryPreview() { refreshes++; }
         }
         Item { id: outside }
@@ -29,7 +43,9 @@ ShellRoot {
             controller: transport
             property bool closed: false
             property int menuRequests: 0
+            property int openRequests: 0
             onCloseRequested: closed = true
+            onOpenRequested: openRequests++
             onMenuRequested: menuRequests++
         }
         Panora.ContextMenuContent {
@@ -50,15 +66,25 @@ ShellRoot {
             when: false
             function checkControls() {
                 popup.forceActiveFocus();
-                tryCompare(window.activeFocusItem, "text", "Next ›");
-                compare(window.activeFocusItem.tooltipText, "Next wallpaper");
+                tryCompare(window.activeFocusItem, "label", "Next wallpaper");
                 keyClick(Qt.Key_Return);
                 compare(transport.lastAction, "next");
                 keyClick(Qt.Key_Menu);
                 keyClick(Qt.Key_F10, Qt.ShiftModifier);
                 compare(popup.menuRequests, 2, "The focused wallpaper popup can open its context menu");
+                var actions = transport.actions;
+                keyClick(Qt.Key_Left);
+                compare(transport.lastAction, "previous");
+                keyClick(Qt.Key_Right);
+                compare(transport.lastAction, "next");
+                compare(transport.actions, actions + 2, "Arrow navigation sends one action each");
+                transport.snapshot = Object.assign({}, transport.snapshot, {can_previous:false});
+                keyClick(Qt.Key_Left);
+                compare(transport.actions, actions + 2, "Left is unavailable at the beginning of History");
+                transport.snapshot = Object.assign({}, transport.snapshot, {can_previous:true});
+                compare(window.activeFocusItem.label, "Next wallpaper", "Arrow navigation preserves focus");
                 compare(popup.modeText, "", "The play icon communicates ordinary pause");
-                keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
+                keyClick(Qt.Key_Tab);
                 compare(window.activeFocusItem.tooltipText, "Resume rotation");
                 keyClick(Qt.Key_Space);
                 compare(transport.lastAction, "resume");
@@ -67,6 +93,7 @@ ShellRoot {
                 compare(window.activeFocusItem.tooltipText, "Pause rotation");
                 keyClick(Qt.Key_Return);
                 compare(transport.lastAction, "pause");
+                keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
                 keyClick(Qt.Key_Backtab, Qt.ShiftModifier);
                 keyClick(Qt.Key_Return);
                 compare(transport.lastAction, "previous");
@@ -78,10 +105,15 @@ ShellRoot {
                 transport.lastAction = "";
                 keyClick(Qt.Key_Return);
                 compare(transport.lastAction, "previous", "Focus restoration keeps the selected control");
+                transport.snapshot = Object.assign({}, transport.snapshot, {can_previous:false});
+                tryCompare(window.activeFocusItem, "label", "Next wallpaper");
+                transport.snapshot = Object.assign({}, transport.snapshot, {can_previous:true});
                 keyClick(Qt.Key_Escape);
                 compare(popup.closed, true);
                 popup.closed = false;
                 popup.focusFirst();
+                keyClick(Qt.Key_Tab);
+                compare(window.activeFocusItem.tooltipText, "Pause rotation");
                 keyClick(Qt.Key_Tab);
                 compare(window.activeFocusItem.text, "×", "Healthy preview offers only playback and Close");
                 popup.focusFirst();
@@ -102,6 +134,7 @@ ShellRoot {
                 popup.displaying = false;
                 popup.displaying = true;
                 keyClick(Qt.Key_Tab);
+                keyClick(Qt.Key_Tab);
                 compare(window.activeFocusItem.text, "Check status");
                 keyClick(Qt.Key_Return);
                 compare(transport.refreshes, 1);
@@ -114,6 +147,22 @@ ShellRoot {
                 popup.displaying = true;
                 keyClick(Qt.Key_Return);
                 compare(popup.closed, true);
+                popup.cliConfigured = true;
+                transport.snapshot = {connected:true,instance_id:"one",paused:true,busy:false,uncertain:false,
+                    setup_required:false,can_previous:false,warning:false};
+                popup.width = 224;
+                popup.canOpenWindow = true;
+                popup.focusFirst();
+                keyClick(Qt.Key_Tab);
+                compare(window.activeFocusItem.text, "Resume rotation");
+                keyClick(Qt.Key_Tab);
+                compare(window.activeFocusItem.text, "Open Panora");
+                keyClick(Qt.Key_Return);
+                keyClick(Qt.Key_Space);
+                var openButton = window.activeFocusItem;
+                tryVerify(function() { return openButton.y > 0; });
+                mouseClick(openButton, openButton.width / 2, openButton.height / 2);
+                compare(popup.openRequests, 3, "The narrow popup offers the same launcher by pointer and keyboard");
                 popup.visible = false;
                 menu.visible = true;
                 menu.forceActiveFocus();

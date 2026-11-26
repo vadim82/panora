@@ -88,7 +88,7 @@ func (s *Service) History(ctx context.Context, before string, limit int) (Histor
 		if err != nil {
 			return HistoryPage{}, &Error{Code: "history_failed", Message: "could not read history origin"}
 		}
-		origin := imageOrigin(e.Identity.ProviderID, candidate)
+		origin := imageOrigin(e.Identity, candidate)
 		item := HistoryEntry{
 			ID: e.ID, ImageID: e.Identity.ImageID, SourceID: e.SourceID, AcceptedAt: e.AcceptedAt, Current: i == s.state.Cursor,
 			Provider: origin.Provider, Image: origin.Image, OriginalPath: origin.OriginalPath, Attribution: origin.Attribution,

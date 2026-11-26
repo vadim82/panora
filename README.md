@@ -15,10 +15,11 @@ the active theme’s wallpapers can join the same rotation.
 [Install on macOS](#install-on-macos-apple-silicon) ·
 [What Panora can do](#what-panora-can-do)
 
-[![Panora on Omarchy. The current wallpaper sits between two angled previews and the desktop changes when Next is clicked.](assets/screenshots/panora-cover-flow.gif)](assets/screenshots/panora-demo.mp4)
+[![Panora’s Omarchy bar popup shows angled Previous and Next wallpapers, their source details, and the active Omarchy theme.](assets/screenshots/panora-bar-cover-flow.gif)](assets/screenshots/panora-bar-cover-flow.mp4)
 
-[Watch the Omarchy demo](assets/screenshots/panora-demo.mp4) to see wallpaper
-previews, history replay, and bar controls.
+[Watch Cover Flow from the Omarchy bar](assets/screenshots/panora-bar-cover-flow.mp4).
+The [desktop app demo](assets/screenshots/panora-demo.mp4) shows the full window
+and History controls.
 
 ## What Panora can do
 

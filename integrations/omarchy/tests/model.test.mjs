@@ -24,3 +24,22 @@ assert.equal(model.actionSucceeded('{"version":1,"instance_id":"one","stopping":
 assert.equal(model.actionSucceeded('{"version":1,"instance_id":"other","stopping":true}','one','stop'),false);
 assert.equal(model.actionSucceeded('{"version":1,"instance_id":"one","stopping":false}','one','stop'),false);
 console.log('Shell model: action gates, unsupported/malformed/oversized payloads, safe text and identity checks passed.');
+
+const dataURI = 'data:image/png;base64,YQ==';
+const flowSnapshot = {...snapshot, flow_revision: 'a'.repeat(64), flow: {
+    previous: {id: '2', history_id: 'history-two', data_uri: dataURI},
+    next: {id: '3', data_uri: dataURI},
+}};
+assert.equal(model.parse(JSON.stringify(flowSnapshot)).flow, undefined);
+assert.equal(model.parse(JSON.stringify(flowSnapshot), true).flow.previous.history_id, 'history-two');
+assert.equal(model.parse(JSON.stringify(flowSnapshot), true).flow.next.history_id, '');
+flowSnapshot.flow.next.data_uri = 'file:///private.png';
+assert.equal(model.parse(JSON.stringify(flowSnapshot), true).flow.next, null);
+
+assert.equal(model.aspectRatio(3840, 2160), '16:9');
+assert.equal(model.aspectRatio(1440, 2560), '9:16');
+assert.equal(model.aspectRatio(3440, 1440), '43:18');
+assert.equal(model.aspectRatio(1920, 0), '');
+
+const named = {...snapshot, image: {...snapshot.image, source_name: 'Night skies'}};
+assert.equal(model.parse(JSON.stringify(named)).image.source_name, 'Night skies');

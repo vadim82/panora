@@ -25,8 +25,11 @@ acknowledges the request before the service stops.
 Status and successful playback responses can include `current_image` alongside
 `current`. The fields are `provider`, `image` (provider image ID), and optional
 `original_path`, `dimensions` from validated bytes, and `attribution`. This
-metadata describes the accepted entry in the same snapshot. The service restores
-it from the catalog at startup and updates it after an accepted change. Polling
+metadata describes the accepted entry in the same snapshot. Optional
+`provider_name` is the installed provider's display name, and `source_name`
+names the configured input or the accepted image's Omarchy theme. The service
+restores accepted image metadata from the catalog at startup and updates it
+after an accepted change. Polling
 reads the snapshot without SQL, provider calls, original files or geometry
 queries. Clients can still use entry IDs and cached previews when details are
 unavailable.
@@ -520,7 +523,7 @@ instead returns the normal no-matching-image error. See
 
 ## Thin shell snapshot (JSON v1)
 
-`panora shell snapshot [--socket PATH] [--preview]` is a read-only adapter for
+`panora shell snapshot [--socket PATH] [--preview | --cover-flow]` is a read-only adapter for
 small shell clients. It never starts the service, applies an image, recovers an
 original or changes settings. A missing/unreachable service produces a successful
 JSON read with `connected:false` and `code:service_unavailable`; malformed status
@@ -528,9 +531,9 @@ uses `code:invalid_status`. Consumers must check `version` and `connected`.
 
 Version 1 exposes `instance_id`, `paused`, `busy`, `uncertain`, `setup_required`,
 `can_previous`, `warning`, optional `next_at`, and optional `image`. Image contains
-string `id` and `history_id`, a bounded plain-text `title`/`origin`, optional source
-`width`/`height`, and `preview_state`. Status-only polling uses generic image labels
-and `preview_state:not_requested`; retain details only for the matching service,
+string `id` and `history_id`, a bounded plain-text `title`/`origin`, optional
+`source_name` and `width`/`height`, and `preview_state`. Status-only polling uses
+generic image labels and `preview_state:not_requested`; retain details only for the matching service,
 image and history identity. A new service instance invalidates old preview data.
 
 `--preview` uses current-image metadata from status, reads the cached preview,
@@ -542,8 +545,21 @@ size (at most 2 MiB) and dimensions (at most 512×512). Missing/invalid previews
 An identity change during those reads discards the old details. No paths, raw
 provider diagnostics, settings, secrets or original file bytes are projected.
 
-Poll small snapshots while the popup is closed. Request a preview when opening or
-when the image identity changes; do not repeatedly embed previews in bar polling.
+Clients can use the optional opaque `flow_revision` together with the instance,
+image and history identity to reconcile neighbors. Its presence also advertises
+`--cover-flow` support. That option includes the current-image fields from
+`--preview` and an optional `flow` object with `previous` and `next` previews.
+Each available neighbor has a string `id`, a validated PNG `data_uri` and, for a
+history entry, its `history_id`. Next prefers the service's prepared upcoming
+image and otherwise uses the immediate forward history entry. Missing, invalid and
+unconfirmed neighbors are omitted. A changed flow revision during the read
+omits the whole `flow` object. The two neighbor reads each have a one-second
+deadline within the shared six-second deadline. A Cover Flow response is bounded
+to 9 MiB.
+
+Poll small snapshots while the popup is closed. Only request Cover Flow while
+the popup is open. Revalidate periodically while open to reflect cache eviction
+or changed eligibility.
 Send explicit `next`, `previous`, `pause` and `resume` commands with
 `--instance ID` from the snapshot. Check status after a lost response and let
 the user choose whether to try again.
