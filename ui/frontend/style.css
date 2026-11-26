@@ -733,7 +733,3 @@ nav button[aria-current] {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
-
-[data-window-palette='omarchy'] .search-filter-rail .ui-button[aria-pressed='true'] {
-  border-color: var(--accent);
-}
