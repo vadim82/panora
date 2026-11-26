@@ -320,9 +320,10 @@
   margin: 0;
 }
 
-.search-editor .search-tags .search-tag-input select,
-.search-editor .search-control-row select {
+.search-editor .search-disclosure :is(.search-tag-input, .search-control-row) select {
   width: auto;
+  max-width: 100%;
+  margin: 0;
   padding-inline-end: 28px;
 }
 
@@ -375,12 +376,6 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.search-editor .search-control-row select {
-  width: auto;
-  max-width: 100%;
-  margin: 0;
 }
 
 .search-colors .search-picks,
