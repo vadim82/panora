@@ -2,6 +2,7 @@ package playback
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/vadim82/panora/internal/desktop"
 	"github.com/vadim82/panora/internal/source"
@@ -15,6 +16,7 @@ type Request struct {
 	Source              source.Provider
 	Providers           map[string]source.Provider
 	ProviderEditors     []ProviderEditor
+	SourceLogger        *slog.Logger
 	InspectCapabilities func(context.Context, string) (desktop.Capabilities, error)
 	ResolveBackend      func(context.Context, string) (desktop.WallpaperBackend, error)
 }

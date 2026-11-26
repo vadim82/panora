@@ -34,16 +34,15 @@ wallpapers.
 
 ### Install with yay
 
-[Add the signed Panora package repository](https://vadim82.github.io/panora/) once.
-Run **Update → Omarchy** to sync it, then find or install Panora.
+[Add Panora’s signed package repository](https://vadim82.github.io/panora/)
+once. Run `omarchy update` and let it finish, then install Panora.
 
 ```sh
-yay -Ss panora
 yay -S panora
 ```
 
-Future Panora versions arrive through **Update → Omarchy** as they are
-published to the package repository.
+The first update refreshes the Panora package list and applies pending system
+updates. Future Panora releases arrive with your normal **Update → Omarchy**.
 
 ### Download from GitHub Releases
 

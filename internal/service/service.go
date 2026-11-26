@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
@@ -33,6 +34,7 @@ func Run(ctx context.Context, options playback.ServiceOptions, resolve playback.
 		return err
 	}
 	options.Request.ConfigPath = path
+	options.Request.SourceLogger = slog.New(slog.NewTextHandler(errOut, nil))
 	serviceCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	service, err := playback.OpenService(serviceCtx, options, resolve)

@@ -131,6 +131,10 @@ desktop integration, refresh timestamps/counts and retry details. Errors, uncert
 outcomes and active retry delays remain visible in compact status. Another
 playback action can return `busy`; status remains available.
 
+Source failures that schedule a retry also write the provider, input ID,
+failure code, stage and retry time to the service log. On Omarchy, read them
+with `journalctl --user -u panora.service -g 'Image source failed'`.
+
 With no enabled inputs, compact status says `Playback: waiting for setup`.
 The additive JSON field `setup_required` is true and `next_at` is omitted.
 

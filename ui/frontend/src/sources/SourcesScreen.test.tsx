@@ -593,10 +593,10 @@ describe('source editors', () => {
     const actions = screen.getByLabelText(/^Actions for Folder /);
     await user.click(actions);
     await user.click(screen.getByRole('button', { name: 'Take out of rotation' }));
-    expect(row).not.toHaveAccessibleDescription('Out of rotation');
+    expect(row).not.toHaveAccessibleDescription(/Out of rotation/);
     (actions as HTMLElement).blur();
     finishToggle();
-    await waitFor(() => expect(row).toHaveAccessibleDescription('Out of rotation'));
+    await waitFor(() => expect(row).toHaveAccessibleDescription(/Out of rotation/));
     await waitFor(() => expect(actions).toHaveFocus());
     expect(client.UpdateFolder).toHaveBeenCalledWith({
       revision: 'added',
@@ -1092,6 +1092,32 @@ function savedSearch(id: string, query = 'forest'): ConfiguredSearch {
 }
 
 describe('Sources manager', () => {
+  it('shows saved image rule modes on collapsed source rows', async () => {
+    const api = installBridge();
+    const config = structuredClone(configuration);
+    const rules = { min_width: 5120, min_height: 1440, ratio: '32:9', ratio_presets: [] };
+    config.searches = [
+      { ...savedSearch('shared'), name: 'Shared search', effective_rules: rules },
+      {
+        ...savedSearch('custom'),
+        name: 'Custom search',
+        image_rules: rules,
+        effective_rules: rules,
+      },
+    ];
+    api.Configuration.mockResolvedValue({ configuration: config });
+    await ready();
+
+    const shared = screen.getByRole('button', { name: /Edit Wallhaven search Shared search/ });
+    const custom = screen.getByRole('button', { name: /Edit Wallhaven search Custom search/ });
+    expect(shared).toHaveAttribute('aria-expanded', 'false');
+    expect(custom).toHaveAttribute('aria-expanded', 'false');
+    expect(within(shared).getByText('Shared image rules')).toBeVisible();
+    expect(within(custom).getByText('Source-specific image rules')).toBeVisible();
+    expect(shared).toHaveAccessibleDescription('Shared image rules');
+    expect(custom).toHaveAccessibleDescription('Source-specific image rules');
+  });
+
   it.each([0, 1, 30])('shows and searches %i configured inputs', async (count) => {
     const api = installBridge();
     const user = userEvent.setup();
@@ -1165,10 +1191,10 @@ describe('Sources manager', () => {
       /Out of rotation/,
     );
     expect(list.getByRole('button', { name: /Edit Wallhaven/ })).toHaveAccessibleDescription(
-      'Provider disabled',
+      /Provider disabled/,
     );
     expect(list.getByRole('button', { name: /Edit Folder.*Missing/ })).toHaveAccessibleDescription(
-      'Waiting to retry',
+      /Waiting to retry/,
     );
     expect(screen.getByText('3 sources')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Needs attention' }));
@@ -1215,10 +1241,10 @@ describe('Sources manager', () => {
       within(actions.parentElement!).getByRole('button', { name: 'Take out of rotation' }),
     ).toHaveFocus();
     await user.keyboard('{Enter}');
-    expect(row).toHaveAccessibleDescription('Saving…');
+    expect(row).toHaveAccessibleDescription(/Saving…/);
     expect(screen.getByText('Last confirmed · 2 sources')).toBeVisible();
     await act(async () => reject());
-    expect(row).not.toHaveAccessibleDescription('Out of rotation');
+    expect(row).not.toHaveAccessibleDescription(/Out of rotation/);
     expect(actions).toHaveFocus();
     await user.click(actions);
     await user.click(screen.getByRole('button', { name: /Retry saving Wallhaven/ }));
