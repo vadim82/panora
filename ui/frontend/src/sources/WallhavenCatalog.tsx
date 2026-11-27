@@ -29,7 +29,8 @@ function currentSearchRead(
   };
 }
 
-type SearchCheck = { id: string; lastSuccess?: string };
+type SearchCheck = { id: string; lastSuccess?: string; alpha?: boolean };
+export const alphaCountKey = (id: string) => 'alpha-coders/' + id;
 
 export function useSearchCounts(
   checks: SearchCheck[],
@@ -51,20 +52,23 @@ export function useSearchCounts(
     // A status disclosure may contain many searches. Keep catalog reads serial,
     // and revisit only searches whose latest successful check changed.
     const previousResults = !reload && reading?.scope === scope ? reading.results : undefined;
-    for (const { id, lastSuccess } of checks) {
+    for (const { id, lastSuccess, alpha } of checks) {
+      const key = alpha ? alphaCountKey(id) : id;
       if (!current()) return;
-      const previous = previousResults?.get(id);
+      const previous = previousResults?.get(key);
       if (previous && previous.lastSuccess === lastSuccess) continue;
       let result: SearchCount;
       try {
-        result = await bridge('CountSearchCandidates', [id, revision]);
+        result = alpha
+          ? await bridge('AlphaCoders', [{ action: 'catalog', input_id: id, revision }])
+          : await bridge('CountSearchCandidates', [id, revision]);
       } catch {
         result = {};
       }
       if (!current()) return;
       setReading((previous) => ({
         scope,
-        results: new Map(previous?.scope === scope ? previous.results : []).set(id, {
+        results: new Map(previous?.scope === scope ? previous.results : []).set(key, {
           lastSuccess,
           result,
         }),

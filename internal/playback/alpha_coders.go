@@ -9,6 +9,8 @@ import (
 )
 
 type AlphaRequest struct {
+	Revision  string            `json:"revision,omitempty"`
+	InputID   string            `json:"input_id,omitempty"`
 	Action    string            `json:"action"`
 	Key       string            `json:"key,omitempty"`
 	Prefix    string            `json:"prefix,omitempty"`
@@ -18,6 +20,7 @@ type AlphaRequest struct {
 }
 
 type AlphaResult struct {
+	Counts    *SearchCandidates  `json:"counts,omitempty"`
 	Connected bool               `json:"connected"`
 	Tags      []source.AlphaTag  `json:"tags,omitempty"`
 	Check     *source.AlphaCheck `json:"check,omitempty"`
@@ -53,13 +56,25 @@ func (s *Service) AlphaCoders(ctx context.Context, req AlphaRequest) (AlphaResul
 		result.Tags, err = provider.Tags(ctx, req.Prefix)
 	case "thumbnail":
 		result.Thumbnail, err = provider.Thumbnail(ctx, req.Thumbnail)
+	case "catalog":
+		if req.InputID == "" || len(req.InputID) > 128 || req.Revision == "" {
+			return result, &Error{Code: "invalid_request", Message: "provide the source ID and reviewed revision"}
+		}
+		counts, countErr := s.countSavedCandidates(ctx, source.AlphaCodersID, req.InputID, req.Revision)
+		if countErr != nil {
+			return result, countErr
+		}
+		result.Counts = &counts
 	case "check":
-		config, _, _, readErr := ReadConfig(s.request.ConfigPath)
+		config, _, saved, readErr := ReadConfig(s.request.ConfigPath)
 		if readErr != nil {
 			return result, invalidSavedConfiguration()
 		}
+		if req.Revision == "" || configRevision(saved) != req.Revision {
+			return result, &Error{Code: "config_conflict", Message: "settings changed; reload them before checking this draft"}
+		}
 		if err = validateSourceRules(req.Rules); err != nil {
-			break
+			return result, &Error{Code: "invalid_settings", Message: err.Error()}
 		}
 		rules := effectiveSourceRules(config, req.Rules)
 		s.statusMu.RLock()

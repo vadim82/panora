@@ -210,7 +210,9 @@ export interface AlphaCheck {
   samples: AlphaSample[];
 }
 export interface AlphaRequest {
-  action: 'status' | 'connect' | 'remove' | 'tags' | 'check' | 'thumbnail';
+  action: 'status' | 'connect' | 'remove' | 'tags' | 'check' | 'thumbnail' | 'catalog';
+  revision?: string;
+  input_id?: string;
   key?: string;
   prefix?: string;
   settings?: ProviderValues;
@@ -218,6 +220,7 @@ export interface AlphaRequest {
   thumbnail?: string;
 }
 export interface AlphaResult {
+  counts?: { discovered: number; eligible: number | null };
   connected: boolean;
   tags?: AlphaTag[];
   check?: AlphaCheck;

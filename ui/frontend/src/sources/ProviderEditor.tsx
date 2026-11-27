@@ -320,10 +320,10 @@ function ManifestEditor({
           )}
           {alpha && alphaConnected && (
             <AlphaCodersResults
-              key={String(alphaConnected)}
               disabled={!mutable || Boolean(sourceRuleError(rules, config.rules))}
               query={{
                 action: 'check',
+                revision: editor.revision,
                 settings: values,
                 ...(rules.rule_mode === 'custom' && { image_rules: sourceRules(rules) }),
               }}

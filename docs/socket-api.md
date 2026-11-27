@@ -600,8 +600,9 @@ to save an input. The private socket is the only editor entry point.
 | `connect` | `key` | Validates and replaces the credential, then returns connection state |
 | `remove` | None | Removes the credential and returns connection state |
 | `tags` | `prefix` | Up to ten approved tags with IDs and catalog totals before filters |
-| `check` | `settings`, optional `image_rules` | Distinct candidate count, per-query page and candidate counts, partial status, and sample locations |
+| `check` | `revision`, `settings`, optional `image_rules` | Distinct candidate count, per-query page and candidate counts, partial status, and sample locations |
 | `thumbnail` | `thumbnail` | A bounded public CDN thumbnail as an image data URL |
+| `catalog` | `revision`, `input_id` | Saved discovered and eligible counts read from the catalog |
 
 A check reads the supplied draft and inspects up to two metadata pages per
 selected tag or keyword. Omit `image_rules` to inherit the saved shared rules.

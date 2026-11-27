@@ -3,7 +3,12 @@ import { useRef, useState } from 'react';
 import { copyText, usePanora } from '../client';
 import { playbackWarnings } from '../now/playbackWarnings';
 import type { Configuration, Failure, ProviderHealth, Retry } from '../types';
-import { DraftSearchMatches, SavedSearchCount, useSearchCounts } from './WallhavenCatalog';
+import {
+  alphaCountKey,
+  DraftSearchMatches,
+  SavedSearchCount,
+  useSearchCounts,
+} from './WallhavenCatalog';
 import type { SearchDraftStatus } from './WallhavenCatalog';
 
 export const providerLabel = (id: string, config?: Configuration | null): string =>
@@ -164,7 +169,20 @@ export function SourceHealth({
       ({ id, enabled }) => enabled && (!wallhaven?.omitted_inputs || reportedSearches.has(id)),
     )
     .map(({ id }) => ({ id, lastSuccess: reportedSearches.get(id)?.last_success }));
-  const counts = useSearchCounts(countedSearches, revision, connection, countRefresh);
+  const alpha = reported.find((provider) => provider.id === 'alpha-coders');
+  const alphaChecks = (configuration?.inputs || [])
+    .filter((input) => input.enabled && input.provider_id === 'alpha-coders')
+    .map(({ id }) => ({
+      id,
+      alpha: true,
+      lastSuccess: alpha?.inputs.find((row) => row.id === id)?.last_success,
+    }));
+  const counts = useSearchCounts(
+    [...countedSearches, ...alphaChecks],
+    revision,
+    connection,
+    countRefresh,
+  );
   const activeDraft = active ? searchDraft : null;
   const draftInStatus =
     activeDraft?.id &&
@@ -311,6 +329,12 @@ export function SourceHealth({
                   {active && search?.enabled && (
                     <SavedSearchCount
                       result={counts?.get(search.id)?.result}
+                      available={Boolean(connection)}
+                    />
+                  )}
+                  {active && external?.enabled && provider.id === 'alpha-coders' && (
+                    <SavedSearchCount
+                      result={counts?.get(alphaCountKey(input.id))?.result}
                       available={Boolean(connection)}
                     />
                   )}
