@@ -164,6 +164,24 @@ func TestLoginChangesKeepCurrentPlaybackAndReportSystemDisable(t *testing.T) {
 	}
 }
 
+func TestRemoveStartupPreservesSeparatelyStartedService(t *testing.T) {
+	manager, fixture := newFixture(t)
+	if _, err := manager.SetLogin(t.Context(), true); err != nil {
+		t.Fatal(err)
+	}
+	fixture.running = true
+	state, err := manager.RemoveStartup(t.Context())
+	if err != nil || !state.Running || state.Managed || state.StartAtLogin {
+		t.Fatalf("cleanup: %+v %v", state, err)
+	}
+	if fixture.stops != 0 || !fixture.running {
+		t.Fatal("cleanup stopped the separately started service")
+	}
+	if _, err := os.Stat(manager.registration); !os.IsNotExist(err) {
+		t.Fatalf("registration remained: %v", err)
+	}
+}
+
 func TestStartRejectsLiveIncompatibleOwnerWithoutKillingIt(t *testing.T) {
 	manager, fixture := newFixture(t)
 	if err := os.MkdirAll(manager.runtime, 0700); err != nil {

@@ -254,11 +254,6 @@ func (m *Manager) SetLogin(ctx context.Context, enabled bool) (State, error) {
 // RemoveStartup is explicit cleanup for moving/removing the app. It leaves all
 // playback data intact and never unloads another application's launch agent.
 func (m *Manager) RemoveStartup(ctx context.Context) (State, error) {
-	if state := m.Status(ctx); state.Running {
-		if _, err := m.Stop(ctx); err != nil {
-			return state, err
-		}
-	}
 	release, err := m.lock(ctx)
 	if err != nil {
 		return State{}, err
