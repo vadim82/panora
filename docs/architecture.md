@@ -147,7 +147,8 @@ and platform-specific dependencies behind the adapter boundary.
    from this selection attempt and give another provider a turn when possible.
    Shuffle all images tries other distinct images before choosing a different
    membership of a failed image.
-5. Check backend readiness, commit the pending intent, and call the desktop.
+5. Check backend readiness and complete any Omarchy Fit preparation. Commit
+   the pending intent at the dispatch boundary and send the desktop command.
    On success, atomically update history/cursor/last-action and clear the intent.
    This restarts the service's single rotation interval.
 

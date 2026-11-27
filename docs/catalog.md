@@ -122,8 +122,9 @@ historical validated dimensions remain distinct from currently verified bytes.
 
 ## Playback transactions
 
-Commit `pending_apply` for an existing image and membership before calling the
-desktop adapter. On acknowledgement, save history, position and last-action
+Commit `pending_apply` for an existing image and membership before dispatching
+the desktop request. Omarchy completes Fit preparation before this commit.
+On acknowledgement, save history, position and last-action
 time and clear the intent in one transaction. History is limited to 100 entries.
 Each accepted entry has a unique opaque
 `public_ref` independent of private SQL row IDs and array positions. Migration
