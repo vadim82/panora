@@ -376,3 +376,91 @@ func TestExtremeRatioCannotReachWallpaperBackend(t *testing.T) {
 		t.Fatalf("extreme ratio reached desktop: %+v, error=%v, calls=%d", status, err, backend.calls)
 	}
 }
+
+func TestServiceOmarchyFitFailureBeforeDispatchKeepsRotationRunning(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	bin := t.TempDir()
+	t.Setenv("PATH", bin)
+	setterLog := filepath.Join(bin, "setter.log")
+	t.Setenv("PANORA_TEST_SETTER_LOG", setterLog)
+	const oneMonitor = `[{"name":"test","width":2,"height":2,"scale":1}]`
+	t.Setenv("PANORA_TEST_MONITORS", oneMonitor)
+	t.Setenv("PANORA_TEST_SETTER_STATUS", "0")
+	for name, script := range map[string]string{
+		"hyprctl": "#!/bin/sh\nprintf '%s\\n' \"$PANORA_TEST_MONITORS\"\n",
+		"omarchy": "#!/bin/sh\nprintf 'set\\n' >> \"$PANORA_TEST_SETTER_LOG\"\nexit \"$PANORA_TEST_SETTER_STATUS\"\n",
+	} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(script), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	service, _ := testService(t, desktop.OmarchyBackend{})
+	first := act(t, service, "next")
+	second := act(t, service, "next")
+	act(t, service, "resume")
+	before, err := os.ReadFile(setterLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PANORA_TEST_MONITORS", "[]")
+	for _, attempt := range []struct {
+		name string
+		run  func() (Status, error)
+	}{
+		{"plain Next", func() (Status, error) { return service.Action(t.Context(), "next") }},
+		{"scheduled Next", func() (Status, error) {
+			service.nextAt = time.Now().Add(-time.Second)
+			return service.perform(t.Context(), "next", actionOptions{automatic: true})
+		}},
+		{"native navigation", func() (Status, error) {
+			return service.Navigate(t.Context(), NavigationRequest{
+				Instance: second.InstanceID, Current: second.Current.ID, Token: firstNavigationToken, Offset: -1,
+			})
+		}},
+		{"History replay", func() (Status, error) { return service.ReplayHistory(t.Context(), first.Current.ID) }},
+	} {
+		t.Run(attempt.name, func(t *testing.T) {
+			status, err := attempt.run()
+			requireConfigError(t, err, "apply_failed")
+			if !strings.Contains(err.Error(), "found 0") {
+				t.Fatalf("expected the zero-monitor Fit error, got %v", err)
+			}
+			if status.Paused || status.Uncertain || status.NextAt == nil || status.PendingImageID != 0 ||
+				status.HistoryLength != second.HistoryLength || status.Current.ID != second.Current.ID {
+				t.Fatalf("preparation failure changed accepted playback: %+v", status)
+			}
+			saved, err := LoadState(service.request.StatePath)
+			if err != nil || saved.Pending != nil || saved.Paused || len(saved.History) != second.HistoryLength ||
+				saved.Cursor != second.HistoryCursor {
+				t.Fatalf("preparation failure changed persisted playback: %+v, err=%v", saved, err)
+			}
+			after, err := os.ReadFile(setterLog)
+			if err != nil || string(after) != string(before) {
+				t.Fatalf("setter ran during failed preparation: %q, err=%v", after, err)
+			}
+		})
+	}
+
+	t.Setenv("PANORA_TEST_MONITORS", oneMonitor)
+	t.Setenv("PANORA_TEST_SETTER_STATUS", "1")
+	failed, err := service.Action(t.Context(), "next")
+	requireConfigError(t, err, "apply_uncertain")
+	saved, err := LoadState(service.request.StatePath)
+	if !failed.Paused || !failed.Uncertain || failed.HistoryLength != second.HistoryLength ||
+		failed.Current.ID != second.Current.ID || err != nil || saved.Pending == nil {
+		t.Fatalf("lost acknowledgement did not retain recoverable intent: %+v, saved=%+v, err=%v", failed, saved, err)
+	}
+	after, err := os.ReadFile(setterLog)
+	if err != nil || string(after) != string(before)+"set\n" {
+		t.Fatalf("setter did not dispatch exactly once: %q, err=%v", after, err)
+	}
+	_, err = service.Action(t.Context(), "resume")
+	requireConfigError(t, err, "apply_uncertain")
+	t.Setenv("PANORA_TEST_SETTER_STATUS", "0")
+	if recovered := act(t, service, "next"); recovered.Uncertain || !recovered.Paused {
+		t.Fatalf("explicit Next did not resolve uncertainty: %+v", recovered)
+	}
+	act(t, service, "resume")
+}

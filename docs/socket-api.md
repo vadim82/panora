@@ -354,8 +354,9 @@ Remote sources with no cache are unverified; listing does not test network acces
 Replay takes an empty body and no query parameters. It preserves the entry's
 accepted time and history length, moves the current position after backend
 acceptance, and resets the normal rotation interval. Paused rotation stays
-paused. An unconfirmed application retains pending intent and pauses
-rotation, matching Next/Previous.
+paused. Omarchy Fit preparation failures return `apply_failed` with the
+accepted cursor, pending intent and pause state preserved. An unconfirmed
+dispatch retains pending intent and pauses rotation, matching Next/Previous.
 `history_not_found` (HTTP 404) means a handle was pruned or is absent; reload the
 list. `history_excluded` and `history_unavailable` return HTTP 422 without changing
 the current position. A busy playback operation returns 409. Clients must not

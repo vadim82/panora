@@ -632,7 +632,7 @@ func (s *Service) applyWithPreparation(ctx, preparation context.Context, backend
 		options.Fit = "crop"
 	}
 	var err error
-	if isOmarchy && navigation != nil {
+	if isOmarchy {
 		err = native.SetWallpaperWithPreparation(ctx, preparation, choice.path, options, begin)
 	} else if err = begin(); err == nil {
 		err = backend.SetWallpaper(ctx, choice.path, options)
