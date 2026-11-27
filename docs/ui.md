@@ -53,7 +53,7 @@ The title and navigation tabs stay visible as you scroll each section.
   folder** lets you change the destination. Now confirms the save and names
   the folder. To rotate saved wallpapers, add the folder from
   **Sources → Add folder**.
-- **Sources** manages folders, saved SFW Wallhaven searches, the active
+- **Sources** manages folders, saved SFW Wallhaven and Alpha Coders searches, the active
   Omarchy theme, and inputs for installed providers. Open **Add source** to
   choose a source. Select **Start wallpapers** when a saved source is ready and
   no wallpaper has been displayed.
@@ -178,6 +178,24 @@ A rejected rotation change retains the saved value and offers **Retry** in
 the row’s actions. A revision conflict
 or uncertain save requires **Reload settings** before another edit. Reload
 preserves edited fields and refreshes untouched fields.
+
+### Alpha Coders
+
+Choose **Sources → Add source → Alpha Coders** and enter a personal API key.
+Add approved tags with typeahead. The suggestion totals describe each tag’s
+catalog before image filters. A saved search matches any selected tag. Use
+**More options** for keyword search or **Highest rated** sorting.
+
+Use **Image rules** to inherit your settings or choose a minimum-resolution
+preset, a custom size, and an aspect ratio. **Similar to my screen** allows a
+source-specific percentage tolerance. Set it to 0 for the exact screen shape.
+
+Use **Check results** to inspect the current draft. The combined count excludes
+duplicates across tags. The individual tag counts can overlap. A check reports
+partial results when the page limit is reached or a request fails. **Show more
+previews** reveals additional thumbnails from the pages already checked. Save
+the source to include it in regular discovery. **Manage key** replaces or removes
+the key shared by all Alpha Coders searches. See [Alpha Coders](providers/alpha-coders.md).
 
 ### Installed providers
 

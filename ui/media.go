@@ -16,6 +16,7 @@ import (
 	"github.com/vadim82/panora/internal/cache"
 	"github.com/vadim82/panora/internal/control"
 	"github.com/vadim82/panora/internal/playback"
+	"github.com/vadim82/panora/internal/source"
 )
 
 type PreviewResult struct {
@@ -110,6 +111,9 @@ func openLocation(entry playback.HistoryEntry, target string) (string, error) {
 	if target == "page" {
 		if entry.Attribution != nil {
 			location := entry.Attribution.PageURL
+			if page := source.AlphaCodersPage(location); page != "" {
+				return page, nil
+			}
 			parsed, err := url.Parse(location)
 			if err == nil && len(location) <= 4096 && parsed.Scheme == "https" && parsed.Hostname() != "" && parsed.User == nil && parsed.RawQuery == "" && !parsed.ForceQuery && parsed.Fragment == "" && !strings.ContainsAny(location, "\r\n\t ") {
 				return location, nil

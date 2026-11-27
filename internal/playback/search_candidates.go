@@ -8,7 +8,7 @@ import (
 	"github.com/vadim82/panora/internal/source"
 )
 
-// SearchCandidates reports the saved Wallhaven search's current selection
+// SearchCandidates reports a saved search's current selection
 // pool. Uncached candidates can still fail original validation during playback.
 type SearchCandidates struct {
 	Version        int            `json:"version"`
@@ -24,6 +24,10 @@ type wallhavenBrowserSearch interface {
 }
 
 func (s *Service) CountSearchCandidates(ctx context.Context, id, revision string) (SearchCandidates, error) {
+	return s.countSavedCandidates(ctx, "wallhaven", id, revision)
+}
+
+func (s *Service) countSavedCandidates(ctx context.Context, providerID, id, revision string) (SearchCandidates, error) {
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 	stop := context.AfterFunc(s.ctx, cancel)
@@ -43,12 +47,16 @@ func (s *Service) CountSearchCandidates(ctx context.Context, id, revision string
 	if configRevision(saved) != revision {
 		return SearchCandidates{}, &Error{Code: "config_conflict", Message: "settings changed; reload them before counting candidates"}
 	}
-	const providerID = "wallhaven"
-	providerConfig, index := findSearch(&config, id)
-	if index < 0 || !providerConfig.Enabled || !providerConfig.Searches[index].enabled() {
-		return SearchCandidates{}, &Error{Code: "search_not_found", Message: "the enabled Wallhaven search was not found"}
+	var wallhavenSearch *SearchConfig
+	if providerID == "wallhaven" {
+		providerConfig, index := findSearch(&config, id)
+		if index < 0 || !providerConfig.Enabled || !providerConfig.Searches[index].enabled() {
+			return SearchCandidates{}, &Error{Code: "search_not_found", Message: "the enabled Wallhaven search was not found"}
+		}
+		wallhavenSearch = &providerConfig.Searches[index]
+	} else if _, ok := configuredInputRules(config, providerID, id); !ok || !s.request.inputProviderAvailable(providerID) {
+		return SearchCandidates{}, &Error{Code: "search_not_found", Message: "the enabled Alpha Coders source was not found"}
 	}
-	search := providerConfig.Searches[index]
 	identity := catalog.Identity{ProviderID: providerID, InputID: id, Revision: config.InputRevision(providerID, id)}
 	rules, ratio, resolution := s.resolveSourceRulesForBackend(ctx, config, identity, backend)
 	rows, err := s.store.Candidates(ctx, providerID, id, identity.Revision, maxCatalogCandidates)
@@ -56,9 +64,9 @@ func (s *Service) CountSearchCandidates(ctx context.Context, id, revision string
 		return SearchCandidates{}, &Error{Code: "candidate_count_failed", Message: "could not count discovered candidates"}
 	}
 	result := SearchCandidates{Version: StatusVersion, Discovered: len(rows), RuleResolution: resolution}
-	if provider, ok := s.request.provider(providerID).(wallhavenBrowserSearch); ok {
+	if provider, ok := s.request.provider(providerID).(wallhavenBrowserSearch); ok && wallhavenSearch != nil {
 		if description, err := provider.Describe(ctx); err == nil {
-			result.SearchURL = provider.BrowserSearchURL(search.settings(identity.Revision), discoveryFilter(rules, ratio, description.FilterHints))
+			result.SearchURL = provider.BrowserSearchURL(wallhavenSearch.settings(identity.Revision), discoveryFilter(rules, ratio, description.FilterHints))
 		}
 	}
 	if resolution.State != "resolved" {

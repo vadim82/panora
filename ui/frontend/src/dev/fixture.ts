@@ -584,6 +584,8 @@ export function installFixture(
     RemoveProviderInput: async () => ({
       error: 'No external providers are installed in this preview.',
     }),
+    AlphaCoders: async () => ({ connected: false }),
+    OpenAlphaCodersPage: async () => ({ opened: false }),
     SuggestProviderInput: async () => ({ values: [] }),
     RemoveSearch: async (edit) => {
       const conflict = checkRevision(edit.revision);

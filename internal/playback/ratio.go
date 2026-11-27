@@ -19,11 +19,12 @@ func validRatioTolerance(pixels int) bool {
 
 // RatioRule is the shared image matcher. A nil rule accepts any aspect ratio.
 type RatioRule struct {
-	ratios          []AspectRatio
-	label           string
-	monitor         bool
-	similar         bool
-	tolerancePixels int
+	ratios           []AspectRatio
+	label            string
+	monitor          bool
+	similar          bool
+	tolerancePixels  int
+	tolerancePercent *int
 }
 
 var ratioPresets = map[string][]AspectRatio{
@@ -87,7 +88,7 @@ func (r *RatioRule) matches(image ImageInfo) bool {
 		return true
 	}
 	if r.similar && len(r.ratios) == 1 {
-		return image.matchesRatio(r.ratios[0], true, 0)
+		return image.matchesRatioTolerance(r.ratios[0], true, 0, r.percent())
 	}
 	for _, ratio := range r.ratios {
 		if image.matchesRatio(ratio, false, r.tolerancePixels) {
@@ -105,6 +106,13 @@ func (r *RatioRule) WithTolerancePixels(pixels int) *RatioRule {
 	copy := *r
 	copy.tolerancePixels = pixels
 	return &copy
+}
+
+func (r *RatioRule) percent() int {
+	if r.tolerancePercent != nil {
+		return *r.tolerancePercent
+	}
+	return 5
 }
 
 func ParseAspectRatio(value string) (AspectRatio, error) {

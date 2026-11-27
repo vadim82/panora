@@ -71,7 +71,7 @@ type ProviderInputEdit struct {
 func (s *Service) providerEditors(config Config) []ProviderEditor {
 	editors := slices.Clone(s.request.ProviderEditors)
 	for _, p := range config.Providers {
-		if source.ValidExternalID(p.ID) && editorIndex(editors, p.ID) < 0 {
+		if source.ValidInputProviderID(p.ID) && editorIndex(editors, p.ID) < 0 {
 			editors = append(editors, ProviderEditor{ID: p.ID, Name: p.ID, EditorError: "Install this provider and restart Panora’s service."})
 		}
 	}
@@ -89,7 +89,7 @@ func (s *Service) configuredInputs(config Config) []ConfiguredInput {
 			effective := effectiveSourceRules(config, input.ImageRules)
 			result = append(result, ConfiguredInput{
 				ProviderID: p.ID, ID: input.ID, Name: input.Name, Values: json.RawMessage(input.Values),
-				InputEnabled: input.enabled(), Enabled: p.Enabled && input.enabled() && s.request.provider(p.ID) != nil,
+				InputEnabled: input.enabled(), Enabled: p.Enabled && input.enabled() && s.request.inputProviderAvailable(p.ID),
 				ImageRules: input.ImageRules, EffectiveRules: effective, RuleResolution: staticRuleResolution(effective.Ratio),
 			})
 		}

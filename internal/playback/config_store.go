@@ -46,13 +46,14 @@ type ConfiguredFolder struct {
 }
 
 type ImageRules struct {
-	ExactResolutions     []string `json:"exact_resolutions,omitempty"`
-	MinWidth             int      `json:"min_width"`
-	MinHeight            int      `json:"min_height"`
-	MaxDepth             int      `json:"max_depth"`
-	Ratio                string   `json:"ratio"`
-	RatioPresets         []string `json:"ratio_presets"`
-	RatioTolerancePixels *int     `json:"ratio_tolerance_pixels,omitempty"`
+	RatioTolerancePercent *int     `json:"ratio_tolerance_percent,omitempty"`
+	ExactResolutions      []string `json:"exact_resolutions,omitempty"`
+	MinWidth              int      `json:"min_width"`
+	MinHeight             int      `json:"min_height"`
+	MaxDepth              int      `json:"max_depth"`
+	Ratio                 string   `json:"ratio"`
+	RatioPresets          []string `json:"ratio_presets"`
+	RatioTolerancePixels  *int     `json:"ratio_tolerance_pixels,omitempty"`
 }
 
 type Configuration struct {

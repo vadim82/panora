@@ -339,6 +339,12 @@ The optional preset field is omitted when empty. Older Panora builds reject
 `presets` and the new field rather than silently interpreting them as Any.
 Changing away from presets through the API must also clear `ratio_presets`.
 
+Alpha Coders sources using **Similar to my screen** can override the default
+5% with `ratio_tolerance_percent` in their source-specific `image_rules` block.
+Use a whole number from 0 to 99. Zero requires the exact screen shape.
+The provider applies the chosen range to discovery when one supported display
+is available. See [Alpha Coders](providers/alpha-coders.md).
+
 ### Match monitor
 
 `ratio = "monitor"` resolves one shared ratio from exactly one unambiguous

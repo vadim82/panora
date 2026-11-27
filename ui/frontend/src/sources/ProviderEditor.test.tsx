@@ -160,3 +160,80 @@ it('opens two manifest layouts and isolates an unsupported provider editor', asy
     }),
   );
 });
+
+it('connects Alpha Coders and checks approved tags before saving a source', async () => {
+  const api = installBridge();
+  const user = userEvent.setup();
+  const input = {
+    name: 'Alpha Coders',
+    id: 'alpha-test',
+    provider_id: 'alpha-coders',
+    enabled: true,
+    input_enabled: true,
+    values: {},
+  };
+  const config: Configuration = {
+    ...structuredClone(configuration),
+    provider_editors: [
+      { id: 'alpha-coders', name: 'Alpha Coders', editor: { version: 1, groups: [] } },
+    ],
+    inputs: [],
+  };
+  api.Configuration.mockResolvedValue({ configuration: config });
+  api.AddProviderInput.mockResolvedValue({ configuration: { ...config, inputs: [input] } });
+  api.AlphaCoders.mockImplementation(async (query) => {
+    if (query.action === 'connect') return { connected: true };
+    if (query.action === 'tags')
+      return { connected: true, tags: [{ id: 1, name: 'Abstract', wallpaper_count: 100 }] };
+    if (query.action === 'check')
+      return {
+        connected: true,
+        check: {
+          count: 8,
+          scopes: [{ name: 'Abstract', count: 8, pages: 1, more: false }],
+          samples: [],
+        },
+      };
+    return { connected: false };
+  });
+  render(
+    <ClientProvider>
+      <Harness />
+    </ClientProvider>,
+  );
+  const trigger = screen.getByRole('button', { name: 'Add source options' });
+  await waitFor(() => expect(trigger).toBeEnabled());
+  await user.click(trigger);
+  await user.click(screen.getByRole('button', { name: 'Alpha Coders' }));
+  const editor = within(screen.getByRole('region', { name: 'Source editor' }));
+  const key = await editor.findByLabelText('Personal API key');
+  expect(key).toHaveAttribute('type', 'password');
+  await user.type(key, 'test-key');
+  await user.click(editor.getByRole('button', { name: 'Connect' }));
+  await user.type(await editor.findByRole('combobox', { name: 'Add an Alpha Coders tag' }), 'abs');
+  expect(await editor.findByRole('option', { name: /Abstract.*100 total/ })).toBeVisible();
+  await user.keyboard('{ArrowDown}{Enter}');
+  await user.selectOptions(editor.getByLabelText('Filter settings'), 'custom');
+  await user.selectOptions(editor.getByLabelText('Minimum resolution'), '2560x720');
+  await user.selectOptions(editor.getByLabelText('Aspect ratio'), 'monitor-similar');
+  const tolerance = editor.getByLabelText(/Aspect ratio tolerance/);
+  await user.clear(tolerance);
+  await user.type(tolerance, '10');
+  await user.click(editor.getByRole('button', { name: 'Check results' }));
+  expect(await editor.findByText('8 candidates found')).toBeVisible();
+  expect(editor.getByText('Abstract · 8')).toBeVisible();
+  await user.click(editor.getByRole('button', { name: 'Add source' }));
+  expect(api.AddProviderInput).toHaveBeenCalledWith(
+    expect.objectContaining({
+      provider_id: 'alpha-coders',
+      values: { tags: [{ id: 1, name: 'Abstract' }] },
+      image_rules: expect.objectContaining({
+        min_width: 2560,
+        min_height: 720,
+        ratio: 'monitor-similar',
+        ratio_tolerance_percent: 10,
+      }),
+    }),
+  );
+  expect(JSON.stringify(api.AddProviderInput.mock.calls)).not.toContain('test-key');
+});

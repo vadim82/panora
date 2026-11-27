@@ -23,7 +23,7 @@ the same scheduler when a source is enabled. See the
 | `internal/cache` | Selected-file copy/download, validation, publication and eviction |
 | `internal/source` | Provider interface, versioned editor manifests, program registry and bounded JSON-RPC child processes |
 | `internal/omarchytheme` | Read-only active theme state, palette and still enumeration |
-| `internal/sources/*` | Local traversal and Wallhaven metadata implementations |
+| `internal/sources/*` | Local traversal, Wallhaven and Alpha Coders metadata implementations |
 | `internal/desktop` | Backend readiness, Fit preparation and wallpaper application |
 | `internal/localfiles`, `internal/filelock` | Shared path checks and advisory locks |
 

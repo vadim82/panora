@@ -172,3 +172,24 @@ func TestPresetEditsShareScanningPlaybackHistoryAndStrictMinima(t *testing.T) {
 		}
 	}
 }
+
+func TestSimilarScreenToleranceAppliesToDiscoveryAndPlayback(t *testing.T) {
+	percent := 10
+	rules := SourceImageRules{MinWidth: 2560, MinHeight: 720, Ratio: "monitor-similar", RatioTolerancePercent: &percent}
+	if err := validateSourceRules(&rules); err != nil {
+		t.Fatal(err)
+	}
+	ratio := rules.ratioRule(10)
+	ratio.monitor = false // The display was resolved.
+	ratio.ratios = []AspectRatio{{Width: 32, Height: 9}}
+	filter := discoveryFilter(rules, ratio, []string{"min_width", "min_height", "ratio_range"})
+	if filter.RatioRange == nil || (filter.RatioRange.Min < 3.1999999 || filter.RatioRange.Min > 3.2000001) || !rules.matches(ImageInfo{Width: 3840, Height: 1200}, ratio) ||
+		rules.matches(ImageInfo{Width: 3839, Height: 1200}, ratio) {
+		t.Fatalf("upstream and local rules disagree: %+v", filter)
+	}
+	percent = 0
+	if rules.matches(ImageInfo{Width: 3840, Height: 1200}, ratio) ||
+		!rules.matches(ImageInfo{Width: 3840, Height: 1080}, ratio) {
+		t.Fatal("zero tolerance did not require the exact shape")
+	}
+}

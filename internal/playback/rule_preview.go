@@ -65,7 +65,7 @@ func (s *Service) PreviewRules(ctx context.Context, request RulePreviewRequest) 
 		return RulePreview{}, &Error{Code: "invalid_request", Message: "provide the reviewed settings revision"}
 	}
 	request.Rules.RatioPresets = append([]string{}, request.Rules.RatioPresets...)
-	rules := SourceImageRules{MinWidth: request.Rules.MinWidth, MinHeight: request.Rules.MinHeight, Ratio: request.Rules.Ratio, RatioPresets: request.Rules.RatioPresets, ExactResolutions: request.Rules.ExactResolutions}
+	rules := SourceImageRules{MinWidth: request.Rules.MinWidth, MinHeight: request.Rules.MinHeight, Ratio: request.Rules.Ratio, RatioPresets: request.Rules.RatioPresets, ExactResolutions: request.Rules.ExactResolutions, RatioTolerancePercent: request.Rules.RatioTolerancePercent}
 	if validateSourceRules(&rules) != nil || request.Rules.MaxDepth < 0 || request.ProviderID == "" && len(rules.ExactResolutions) > 0 {
 		return RulePreview{}, &Error{Code: "invalid_settings", Message: "provide positive minimum dimensions, nonnegative depth and a valid image ratio rule"}
 	}
@@ -97,7 +97,7 @@ func (s *Service) PreviewRules(ctx context.Context, request RulePreviewRequest) 
 	if pixels := request.Rules.RatioTolerancePixels; pixels != nil {
 		tolerance = *pixels
 	}
-	ratio, _ := parseRatioRule(rules.Ratio, rules.RatioPresets, tolerance)
+	ratio := rules.ratioRule(tolerance)
 	result := RulePreview{Version: StatusVersion, Revision: request.Revision, Rules: request.Rules, Scope: "inherited_catalog", Validation: "local_headers_and_validated_cache", Limit: catalog.MaxRulePreviewImages, Complete: true}
 	partial := func(reason string) { result.Complete = false; result.Reason = reason }
 	scoped := request.ProviderID != ""

@@ -14,6 +14,8 @@ export function SuggestionInput({
   suggest,
   selected,
   onAdd,
+  approvedOnly,
+  renderOption,
 }: {
   id?: string;
   label: string;
@@ -24,6 +26,8 @@ export function SuggestionInput({
   suggest?: Suggestions;
   selected: string[];
   onAdd(value: string): boolean;
+  approvedOnly?: boolean;
+  renderOption?(value: string): ReactNode;
 }) {
   const listID = useId();
   const [entry, setEntry] = useState('');
@@ -125,7 +129,7 @@ export function SuggestionInput({
             if (event.nativeEvent.isComposing) return;
             if (event.key === 'Enter') {
               event.preventDefault();
-              add(values[active] || prefix);
+              add(values[active] || (approvedOnly ? values[0] : prefix));
             } else if (expanded && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
               event.preventDefault();
               const step = event.key === 'ArrowDown' ? 1 : -1;
@@ -159,13 +163,13 @@ export function SuggestionInput({
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => add(value)}
               >
-                {value}
+                {renderOption ? renderOption(value) : value}
               </li>
             ))}
           </ul>
         )}
       </div>
-      <Button onClick={() => add(prefix)}>{addLabel}</Button>
+      {!approvedOnly && <Button onClick={() => add(prefix)}>{addLabel}</Button>}
     </div>
   );
 }

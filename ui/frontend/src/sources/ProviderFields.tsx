@@ -105,7 +105,9 @@ export function ProviderField({
     </>
   );
   const text = typeof value === 'string' || typeof value === 'number' ? value : '';
-  const values = Array.isArray(value) ? value : [];
+  const values = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
   const options = field.options || [];
   const help = field.help && <p className="subtext">{field.help}</p>;
 

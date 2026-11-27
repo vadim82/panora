@@ -13,11 +13,12 @@ import (
 // folder or search. A nil source block explicitly inherits legacy global rules.
 // Scan depth remains a local-folder setting rather than an image property.
 type SourceImageRules struct {
-	MinWidth         int      `toml:"min_width" json:"min_width"`
-	MinHeight        int      `toml:"min_height" json:"min_height"`
-	Ratio            string   `toml:"ratio" json:"ratio"`
-	RatioPresets     []string `toml:"ratio_presets,omitempty" json:"ratio_presets"`
-	ExactResolutions []string `toml:"exact_resolutions,omitempty" json:"exact_resolutions,omitempty"`
+	RatioTolerancePercent *int     `toml:"ratio_tolerance_percent,omitempty" json:"ratio_tolerance_percent,omitempty"`
+	MinWidth              int      `toml:"min_width" json:"min_width"`
+	MinHeight             int      `toml:"min_height" json:"min_height"`
+	Ratio                 string   `toml:"ratio" json:"ratio"`
+	RatioPresets          []string `toml:"ratio_presets,omitempty" json:"ratio_presets"`
+	ExactResolutions      []string `toml:"exact_resolutions,omitempty" json:"exact_resolutions,omitempty"`
 }
 
 func sourceDefaultRules(config Config) SourceImageRules {
@@ -49,6 +50,9 @@ func newSourceRules(request *SourceImageRules) *SourceImageRules {
 func validateSourceRules(rules *SourceImageRules) error {
 	if rules == nil {
 		return nil
+	}
+	if p := rules.RatioTolerancePercent; p != nil && (rules.Ratio != "monitor-similar" || *p < 0 || *p > 99) {
+		return fmt.Errorf("image_rules ratio_tolerance_percent requires a similar screen shape and 0–99 percent")
 	}
 	if rules.MinWidth < 1 || rules.MinHeight < 1 {
 		return fmt.Errorf("image_rules requires positive minimum dimensions")
@@ -96,11 +100,21 @@ func editSourceRules(saved **SourceImageRules, rules *SourceImageRules, inherit 
 	if err := validateSourceRules(rules); err != nil {
 		return false, &Error{Code: "invalid_settings", Message: err.Error()}
 	}
-	if *saved != nil && (*saved).MinWidth == rules.MinWidth && (*saved).MinHeight == rules.MinHeight && (*saved).Ratio == rules.Ratio && slices.Equal((*saved).RatioPresets, rules.RatioPresets) && slices.Equal((*saved).ExactResolutions, rules.ExactResolutions) {
+	if *saved != nil && (*saved).MinWidth == rules.MinWidth && (*saved).MinHeight == rules.MinHeight && (*saved).Ratio == rules.Ratio && slices.Equal((*saved).RatioPresets, rules.RatioPresets) && slices.Equal((*saved).ExactResolutions, rules.ExactResolutions) && samePercent((*saved).RatioTolerancePercent, rules.RatioTolerancePercent) {
 		return false, nil
 	}
 	*saved = newSourceRules(rules)
 	return true, nil
+}
+
+func samePercent(a, b *int) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
+
+func (r SourceImageRules) ratioRule(pixels int) *RatioRule {
+	ratio, _ := parseRatioRule(r.Ratio, r.RatioPresets, pixels)
+	if ratio != nil && ratio.similar {
+		ratio.tolerancePercent = r.RatioTolerancePercent
+	}
+	return ratio
 }
 
 func configuredInputRules(config Config, providerID, inputID string) (SourceImageRules, bool) {
@@ -147,7 +161,7 @@ func (s *Service) resolveSourceRulesForBackend(ctx context.Context, config Confi
 	if !ok {
 		return rules, nil, RuleResolution{State: "unavailable", Reason: "outside_enabled_inputs"}
 	}
-	ratio, _ := parseRatioRule(rules.Ratio, rules.RatioPresets, config.RatioTolerancePixels()) // Config was validated.
+	ratio := rules.ratioRule(config.RatioTolerancePixels()) // Config was validated.
 	ratio, resolution := s.resolveRatioRule(ctx, ratio, backend)
 	return rules, ratio, resolution
 }
@@ -174,13 +188,17 @@ func (s *Service) sourceRuleResolverForBackend(ctx context.Context, config Confi
 		rules, ok := configuredInputRules(config, identity.ProviderID, identity.InputID)
 		value := resolved{rules: rules, resolution: RuleResolution{State: "unavailable", Reason: "outside_enabled_inputs"}}
 		if ok {
-			ratio, _ := parseRatioRule(rules.Ratio, rules.RatioPresets, config.RatioTolerancePixels())
-			if monitor, found := monitors[rules.Ratio]; found {
+			ratio := rules.ratioRule(config.RatioTolerancePixels())
+			monitorKey := rules.Ratio
+			if ratio != nil && ratio.similar {
+				monitorKey = fmt.Sprintf("%s-%d", monitorKey, ratio.percent())
+			}
+			if monitor, found := monitors[monitorKey]; found {
 				value.ratio, value.resolution = monitor.ratio, monitor.resolution
 			} else {
 				value.ratio, value.resolution = s.resolveRatioRule(ctx, ratio, backend)
 				if ratio != nil && ratio.monitor {
-					monitors[rules.Ratio] = value
+					monitors[monitorKey] = value
 				}
 			}
 		}
@@ -215,6 +233,12 @@ func discoveryFilter(rules SourceImageRules, ratio *RatioRule, supported []strin
 			result.ExactResolutions = rules.ExactResolutions
 		}
 	}
+	if ratio != nil && !ratio.monitor && ratio.similar && len(ratio.ratios) == 1 && slices.Contains(supported, "ratio_range") {
+		shape := ratio.ratios[0]
+		target := float64(shape.Width) / float64(shape.Height)
+		offset := float64(ratio.percent()) / 100
+		result.RatioRange = &source.RatioBounds{Min: target * (1 - offset), Max: target * (1 + offset)}
+	}
 	if ratio != nil && !ratio.monitor && !ratio.similar {
 		if len(ratio.ratios) == 1 && slices.Contains(supported, "ratio") {
 			result.Ratio = &source.Dimensions{Width: ratio.ratios[0].Width, Height: ratio.ratios[0].Height}
@@ -224,7 +248,7 @@ func discoveryFilter(rules SourceImageRules, ratio *RatioRule, supported []strin
 			}
 		}
 	}
-	if result.MinWidth == 0 && result.MinHeight == 0 && result.Ratio == nil && len(result.Ratios) == 0 && len(result.ExactResolutions) == 0 {
+	if result.MinWidth == 0 && result.MinHeight == 0 && result.Ratio == nil && result.RatioRange == nil && len(result.Ratios) == 0 && len(result.ExactResolutions) == 0 {
 		return nil
 	}
 	return result
@@ -267,8 +291,8 @@ type discoveryHintsProvider struct {
 func (p *discoveryHintsProvider) Describe(ctx context.Context) (source.Description, error) {
 	description, err := p.Provider.Describe(ctx)
 	if err == nil {
-		ratio, _ := ParseRatioRule(p.rules.Ratio, p.rules.RatioPresets)
-		if ratio != nil && ratio.monitor && !ratio.similar && slices.Contains(description.FilterHints, "ratio") {
+		ratio := p.rules.ratioRule(defaultRatioTolerancePixels)
+		if ratio != nil && ratio.monitor && (!ratio.similar && slices.Contains(description.FilterHints, "ratio") || ratio.similar && slices.Contains(description.FilterHints, "ratio_range")) {
 			ratio = p.resolveRatio(ctx, ratio)
 		}
 		p.filter = discoveryFilter(p.rules, ratio, description.FilterHints)

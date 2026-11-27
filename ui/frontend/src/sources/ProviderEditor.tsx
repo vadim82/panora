@@ -1,9 +1,10 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { bridge, usePanora } from '../client';
 import { Button, Field, FormActions, Notice, TextInput } from '../components/ui';
 import type { ConfiguredInput, ProviderEditorDescription, ProviderInputEdit } from '../types';
 import type { EditorCallbacks } from './editorCallbacks';
+import { AlphaCodersFields, AlphaCodersResults } from './AlphaCodersFields';
 import { ProviderField, ProviderFields } from './ProviderFields';
 import { fieldError, fieldVisible, manifestDefaults, manifestFields } from './providerManifest';
 import type { EditorManifest, ProviderValues } from './providerManifest';
@@ -13,6 +14,7 @@ import {
   sourceRuleDraft,
   sourceRuleError,
   sourceRulePatch,
+  sourceRules,
 } from './SourceRules';
 
 type Props = EditorCallbacks & {
@@ -75,6 +77,12 @@ function ManifestEditor({
     };
   });
   const { values, rules, name } = editor;
+  const alpha = providerID === 'alpha-coders';
+  const [alphaConnected, setAlphaConnected] = useState(false);
+  const updateAlphaConnection = useCallback(
+    (connected: boolean) => setAlphaConnected(connected),
+    [],
+  );
   const [enabled, setEnabled] = useState(true);
   const [suggestions, setSuggestions] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
@@ -151,7 +159,7 @@ function ManifestEditor({
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!mutable || lock.current || (existing && !dirty)) return;
+    if (!mutable || (alpha && !alphaConnected) || lock.current || (existing && !dirty)) return;
     const invalid = fields.find(
       (field) => fieldVisible(field, values) && fieldError(field, values[field.key]),
     );
@@ -246,6 +254,13 @@ function ManifestEditor({
               }
             />
           </Field>
+          {alpha && (
+            <AlphaCodersFields
+              values={values}
+              onConnection={updateAlphaConnection}
+              onChange={(values) => setEditor((current) => ({ ...current, values }))}
+            />
+          )}
           {Object.keys(lookup).length > 0 && (
             <label className="search-check">
               <input
@@ -287,20 +302,33 @@ function ManifestEditor({
               )}
             />
           ))}
-          <SourceRules
-            prefix="provider-rule"
-            provider={providerID}
-            inputID={input?.id || null}
-            revision={editor.revision}
-            enrolled={Boolean(existing && previewSource?.enabled && !dirtyValues)}
-            draft={rules}
-            inherited={config.rules}
-            disabled={!mutable || working}
-            validate={showErrors}
-            onChange={(patch) =>
-              setEditor((current) => ({ ...current, rules: { ...current.rules, ...patch } }))
-            }
-          />
+          {(!alpha || alphaConnected) && (
+            <SourceRules
+              prefix="provider-rule"
+              provider={providerID}
+              inputID={input?.id || null}
+              revision={editor.revision}
+              enrolled={Boolean(existing && previewSource?.enabled && !dirtyValues)}
+              draft={rules}
+              inherited={config.rules}
+              disabled={!mutable || working}
+              validate={showErrors}
+              onChange={(patch) =>
+                setEditor((current) => ({ ...current, rules: { ...current.rules, ...patch } }))
+              }
+            />
+          )}
+          {alpha && alphaConnected && (
+            <AlphaCodersResults
+              disabled={!mutable || Boolean(sourceRuleError(rules, config.rules))}
+              query={{
+                action: 'check',
+                revision: editor.revision,
+                settings: values,
+                ...(rules.rule_mode === 'custom' && { image_rules: sourceRules(rules) }),
+              }}
+            />
+          )}
           {!existing && (
             <label className="search-check">
               <input
@@ -325,7 +353,7 @@ function ManifestEditor({
             type="submit"
             variant="primary"
             pending={working}
-            disabled={!mutable || Boolean(existing && !dirty)}
+            disabled={!mutable || (alpha && !alphaConnected) || Boolean(existing && !dirty)}
           >
             {existing ? 'Save' : editor.missing ? 'Save as new source' : 'Add source'}
           </Button>

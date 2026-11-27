@@ -162,7 +162,7 @@ func (s *Service) neighborPreviewEligible(ctx context.Context, snapshot neighbor
 	}
 	originEnabled := enabledHistoryOrigin(identity, candidate, config) == nil
 	if !originEnabled ||
-		source.ValidExternalID(identity.ProviderID) && s.request.provider(identity.ProviderID) == nil ||
+		source.ValidInputProviderID(identity.ProviderID) && !s.request.inputProviderAvailable(identity.ProviderID) ||
 		identity.ProviderID == omarchyProvider && !s.observedThemeHistory(identity) {
 		return false, nil
 	}

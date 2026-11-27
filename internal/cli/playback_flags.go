@@ -7,6 +7,7 @@ import (
 
 	"github.com/vadim82/panora/internal/playback"
 	"github.com/vadim82/panora/internal/source"
+	"github.com/vadim82/panora/internal/sources/alphacoders"
 	"github.com/vadim82/panora/internal/sources/wallhaven"
 )
 
@@ -17,6 +18,13 @@ func addPlaybackFlags(cmd *cobra.Command, request *playback.Request) {
 		request.Source = source.BundledLocal()
 		request.ProviderEditors = nil
 		request.Providers = map[string]source.Provider{"wallhaven": wallhaven.New()}
+		configPath, err := playback.ConfigPath(request.ConfigPath)
+		if err != nil {
+			return err
+		}
+		request.Providers[source.AlphaCodersID] = alphacoders.New(configPath + ".alpha-coders-key")
+		request.ProviderEditors = append(request.ProviderEditors, playback.ProviderEditor{ID: source.AlphaCodersID, Name: "Alpha Coders", Editor: &source.EditorManifest{Version: 1, Groups: []source.EditorGroup{}}})
+
 		if pluginDirectory != "" {
 			client, err := source.Load(pluginDirectory)
 			if err != nil {

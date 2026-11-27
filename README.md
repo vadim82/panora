@@ -6,10 +6,10 @@
 
 **A wallpaper rotator for Omarchy and Apple silicon Macs.**
 
-Keep your favorite wallpapers in rotation while discovering new ones. Mix
-local folders and saved Wallhaven searches, decide which images qualify for
-your screen, and let Panora change the wallpaper in the background. On Omarchy,
-the active theme’s wallpapers can join the same rotation.
+Keep your favorite wallpapers in rotation while discovering new ones. Mix local folders,
+saved Wallhaven searches, and saved Alpha Coders searches. Decide which images
+qualify for your screen, and let Panora change the wallpaper in the background.
+On Omarchy, the active theme’s wallpapers can join the same rotation.
 
 [Install on Omarchy](#install-on-omarchy) ·
 [Install on macOS](#install-on-macos-apple-silicon) ·
@@ -25,12 +25,16 @@ and History controls.
 
 ### Mix your collection with new wallpapers
 
-Add several folders and save multiple Wallhaven searches. Keep a folder of
-favorites in rotation alongside searches like *wide
-landscapes* and *night skies*. Each search has its own terms, tags, categories,
-and colors. Match any or all of the selected tags. Online discovery is opt-in
-and limited to safe-for-work results. Turn individual sources on or off without
-deleting them. [See the Wallhaven search editor](assets/screenshots/wallhaven-filters/expanded.png)
+Add as many sources as you need and turn each one on or off independently.
+Online discovery is opt-in and limited to family-friendly results.
+
+| Source | What you can add |
+| --- | --- |
+| [Local folders](docs/providers/local.md) | Your JPEG, PNG, and static WebP files |
+| [Wallhaven](docs/providers/wallhaven.md) | Saved searches with keywords, tags, categories, and colors |
+| [Alpha Coders](docs/providers/alpha-coders.md) | Saved searches with tag autocomplete, a result check with thumbnails, and your personal API key |
+| [Omarchy theme](docs/providers/omarchy.md) | The active theme’s still backgrounds on Omarchy |
+| [Provider plugins](docs/providers/README.md#custom-provider-programs) | Additional collections from trusted installed providers |
 
 By default, **Balance sources** gives each eligible provider an equal chance,
 so a large folder collection doesn’t crowd out Wallhaven. Choose **Shuffle

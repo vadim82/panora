@@ -158,6 +158,11 @@ func (s *Service) runDiscovery() {
 				job := jobs[key]
 				local := job.provider.ID == "local"
 				until := s.retryUntil(catalog.RetryKey{ProviderID: job.provider.ID, InputID: job.input.id, Revision: job.input.revision, Scope: "discovery"}, "provider_metadata")
+				if job.provider.ID == source.AlphaCodersID && until.IsZero() && job.health.Failure != nil &&
+					(job.health.Failure.Code == "auth_required" || job.health.Failure.Code == "auth_rejected") &&
+					s.request.inputProviderAvailable(job.provider.ID) {
+					job.next = time.Time{}
+				}
 				if active[key] != nil || time.Now().Before(maxTime(job.next, until)) || local && localActive >= 1 || !local && remoteActive >= maxDiscoveryWorkers-1 {
 					continue
 				}
