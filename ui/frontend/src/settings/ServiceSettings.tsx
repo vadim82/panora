@@ -260,10 +260,10 @@ export function ServiceSettings() {
         title={remove ? 'Prepare to move or remove Panora?' : 'Stop Panora service?'}
         description={
           remove
-            ? 'This stops playback and removes Panora’s login/startup registration. Settings, history and original images are kept. Quit the client before moving or deleting the app.'
+            ? 'This stops the managed service and removes Panora’s login/startup registration. A separately started service keeps running. Settings, history and original images are kept. Quit the client before moving or deleting the app.'
             : 'Rotation and discovery stop. The last wallpaper and saved settings remain. Background polling will not restart it.'
         }
-        confirmLabel={remove ? 'Stop and remove startup' : 'Stop service'}
+        confirmLabel={remove ? 'Remove startup' : 'Stop service'}
         confirmID="service-confirm-yes"
         cancelID="service-confirm-cancel"
         returnFocusID={pending?.origin?.id}
