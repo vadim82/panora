@@ -39,9 +39,11 @@ Malformed settings or a root that resolves to an existing non-directory report
 ## Discovery and selection
 
 Discovery returns paths in pages without decoding images or applying rules. Its
-cursor holds a traversal offset and settings fingerprint, not a folder snapshot.
-Each page walks the folder again; changes between pages can produce a stale
-cursor or incomplete coverage. Settings changes invalidate cursors.
+cursor holds a traversal offset, a digest of the last returned path and a
+settings fingerprint. Each page walks the folder again and checks that the
+offset still identifies the same path. A missing or shifted path invalidates
+the cursor and restarts the scan. Settings changes also invalidate cursors.
+The previous complete scan remains available until the retry completes.
 
 Background jobs commit pages and checkpoints to SQLite. Interrupted discovery
 resumes its committed cursor; completed scans restart at the next refresh.

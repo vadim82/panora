@@ -149,10 +149,25 @@ func TestDiscoveryRevisionInvalidatesCursor(t *testing.T) {
 	if err != nil || source.IsNull(page.NextCursor) {
 		t.Fatalf("first page: %+v %v", page, err)
 	}
+	var oldCursor struct {
+		Config string `json:"config"`
+		Offset int    `json:"offset"`
+	}
+	if err := json.Unmarshal(page.NextCursor, &oldCursor); err != nil {
+		t.Fatal(err)
+	}
+	unanchored, err := json.Marshal(oldCursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = (Provider{}).Discover(t.Context(), source.DiscoverParams{Config: raw, Cursor: unanchored, Limit: 1})
+	var typed *source.Error
+	if !errors.As(err, &typed) || typed.Code != "invalid_cursor" {
+		t.Fatalf("unanchored cursor accepted: %v", err)
+	}
 	config.Revision = "second"
 	raw, _ = json.Marshal(config)
 	_, err = (Provider{}).Discover(context.Background(), source.DiscoverParams{Config: raw, Cursor: page.NextCursor, Limit: 1})
-	var typed *source.Error
 	if !errors.As(err, &typed) || typed.Code != "invalid_cursor" {
 		t.Fatalf("cursor reused under changed revision: %v", err)
 	}
