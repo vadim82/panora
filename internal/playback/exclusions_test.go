@@ -119,11 +119,26 @@ func TestExclusionsSkipHistoryAndFreshSelection(t *testing.T) {
 	}
 	// Exclusions are independent of the bounded history, even when its entries expire.
 	act(t, s, "exclude")
-	for range HistoryLimit + 1 {
-		act(t, s, "next")
+	marked, err := s.Exclusions(t.Context(), 0, 10)
+	if err != nil || len(marked.Entries) != 1 {
+		t.Fatalf("expected one exclusion: %+v %v", marked, err)
 	}
+	// Seed up to the limit so one real fresh selection prunes the first entry.
+	retained := s.state.History[1]
+	for len(s.state.History) < HistoryLimit {
+		s.state.Record(retained.Path, retained.SourceID)
+		s.state.History[len(s.state.History)-1].Identity = retained.Identity
+	}
+	if err := s.saveState(s.state); err != nil {
+		t.Fatal(err)
+	}
+	if status := act(t, s, "next"); status.HistoryLength != HistoryLimit {
+		t.Fatalf("history exceeded its limit: %+v", status)
+	}
+	_, err = s.ReplayHistory(t.Context(), first.Current.ID)
+	requireConfigError(t, err, "history_not_found")
 	page, err := s.Exclusions(t.Context(), 0, 10)
-	if err != nil || len(page.Entries) != 1 || s.Status().HistoryLength != HistoryLimit {
+	if err != nil || len(page.Entries) != 1 || page.Entries[0].ID != marked.Entries[0].ID {
 		t.Fatalf("history pruning lost exclusion: %+v %v", page, err)
 	}
 }

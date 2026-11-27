@@ -326,11 +326,11 @@ enabled=true
 id="nature"
 query="nature"
 [providers.searches.image_rules]
-min_width=3024
-min_height=1964
+min_width=756
+min_height=491
 ratio="monitor"
 `)
-	caps := knownMonitorCapabilities("macos", 3024, 1964)
+	caps := knownMonitorCapabilities("macos", 756, 491)
 	s.request.InspectCapabilities = func(context.Context, string) (desktop.Capabilities, error) {
 		return caps, nil
 	}
@@ -377,15 +377,15 @@ ratio="monitor"
 			t.Fatal(err)
 		}
 	}
-	add("metadata-mismatch", 3840, 2160, 0)
-	add("decoded-mismatch", 3840, 2400, 2160)
+	add("metadata-mismatch", 960, 540, 0)
+	add("decoded-mismatch", 960, 600, 540)
 	s.draw = func(n int) int { return 0 }
 	status, err := s.Action(t.Context(), "next")
 	requireConfigError(t, err, "selection_failed")
 	if status.HistoryLength != 0 || len(status.Warnings) != 1 || !strings.Contains(status.Warnings[0], "decoded image") || len(remote.resolvedIDs) != 0 {
 		t.Fatalf("mismatches were not rejected by metadata and decoded validation: %+v, resolved=%v", status, remote.resolvedIDs)
 	}
-	add("nearby-shape", 3840, 2400, 2400)
+	add("nearby-shape", 960, 600, 600)
 	status = act(t, s, "next")
 	if status.Current == nil || status.HistoryLength != 1 || backend.calls.Load() != 1 {
 		t.Fatalf("nearby shape was not accepted: %+v", status)
@@ -394,7 +394,7 @@ ratio="monitor"
 		caps.Geometry = desktop.Geometry{State: state}
 		preview, err := s.PreviewRules(t.Context(), RulePreviewRequest{
 			Revision: reopened.Revision, ProviderID: "wallhaven", InputID: "nature",
-			Rules: ImageRules{MinWidth: 3024, MinHeight: 1964, Ratio: "monitor-similar"},
+			Rules: ImageRules{MinWidth: 756, MinHeight: 491, Ratio: "monitor-similar"},
 		})
 		if err != nil || preview.RuleResolution.State != state {
 			t.Fatalf("preview geometry %s: %+v %v", state, preview, err)
