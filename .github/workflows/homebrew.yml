@@ -55,8 +55,8 @@ jobs:
 
           formula, checkout, tag, revision = sys.argv[1:]
           path = Path(formula)
-          source = f'url "file://{checkout}/.git",\n      tag:      "{tag}",\n      revision: "{revision}"'
-          text, count = re.subn(r'url ".+?",\n\s+tag:.*?\n\s+revision:.*?(?=\n)', source, path.read_text(), count=1)
+          source = f'url "file://{checkout}/.git",\n      using:    :git,\n      tag:      "{tag}",\n      revision: "{revision}"'
+          text, count = re.subn(r'url ".+?",\n(?:\s+using:.*\n)?\s+tag:.*?\n\s+revision:.*?(?=\n)', source, path.read_text(), count=1)
           if count != 1:
               sys.exit("could not set the candidate formula source")
           path.write_text(text)
@@ -75,6 +75,7 @@ jobs:
               fi
               sleep 1
             done
+            tail -n 30 "$HOME/Library/Logs/Panora/service.log" >&2 || true
             return 1
           }
 
