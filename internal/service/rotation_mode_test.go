@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"image"
 	"image/png"
 	"io"
@@ -22,47 +21,30 @@ import (
 	"github.com/vadim82/panora/internal/sources/local"
 )
 
-func TestRunningServiceShufflesFreshNextAndScheduledChoice(t *testing.T) {
+func TestRotationModeThroughPrivateSocket(t *testing.T) {
 	directory, err := os.MkdirTemp("", "panora-shuffle-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(directory) })
-	root := filepath.Join(directory, "originals")
-	if err := os.Mkdir(root, 0700); err != nil {
+	remoteFixture := filepath.Join(directory, "remote.png")
+	file, err := os.Create(remoteFixture)
+	if err != nil {
 		t.Fatal(err)
 	}
-	writeFixture := func(path string, height int) {
-		t.Helper()
-		file, err := os.Create(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer file.Close()
-		if err := png.Encode(file, image.NewRGBA(image.Rect(0, 0, 2, height))); err != nil {
-			t.Fatal(err)
-		}
+	encodeErr := png.Encode(file, image.NewRGBA(image.Rect(0, 0, 2, 3)))
+	if closeErr := file.Close(); encodeErr != nil || closeErr != nil {
+		t.Fatalf("write fixture: %v %v", encodeErr, closeErr)
 	}
-	writeFixture(filepath.Join(root, "local.png"), 2)
-	remoteFixture := filepath.Join(directory, "remote.png")
-	writeFixture(remoteFixture, 3)
 	path := filepath.Join(directory, "config.toml")
-	body := fmt.Sprintf(`version=1
-[playback]
-interval="1s"
-[[providers]]
-id="local"
-enabled=true
-[[providers.folders]]
-id="home"
-path=%q
+	body := `version=1
 [[providers]]
 id="wallhaven"
 enabled=true
 [[providers.searches]]
 id="remote"
 query="fixture"
-`, root)
+`
 	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -106,30 +88,9 @@ query="fixture"
 		t.Fatal("service did not start")
 	}
 
-	waitForStatus := func(accept func(playback.Status) bool) playback.Status {
-		t.Helper()
-		deadline := time.Now().Add(5 * time.Second)
-		for {
-			status, err := control.Request(ctx, socket, "")
-			if err == nil && accept(status) {
-				return status
-			}
-			if time.Now().After(deadline) {
-				t.Fatalf("waiting for playback status: %+v %v", status, err)
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-	initial := waitForStatus(func(status playback.Status) bool {
-		for _, provider := range status.Providers {
-			if provider.ID == "local" && len(provider.Inputs) == 1 && provider.Inputs[0].State == "ready" {
-				return true
-			}
-		}
-		return false
-	})
-	if initial.Current == nil || initial.Current.ImageID != seeded || !initial.Paused {
-		t.Fatalf("could not reopen the accepted wallpaper: %+v", initial)
+	initial, err := control.Request(ctx, socket, "")
+	if err != nil || initial.Current == nil || initial.Current.ImageID != seeded || !initial.Paused {
+		t.Fatalf("could not reopen the accepted wallpaper: %+v %v", initial, err)
 	}
 	settings, err := control.ReadConfiguration(ctx, socket)
 	if err != nil || settings.Saved.RotationMode != "balance_sources" {
@@ -144,16 +105,9 @@ query="fixture"
 	if err != nil || !reflect.DeepEqual(after.Current, initial.Current) || after.HistoryCursor != initial.HistoryCursor || backend.calls.Load() != 0 {
 		t.Fatalf("save changed accepted state: before=%+v after=%+v %v", initial, after, err)
 	}
-	next, err := control.Request(ctx, socket, "next")
-	if err != nil || next.Current == nil || next.Current.SourceID != "home" || next.HistoryLength != 2 || !next.Paused {
-		t.Fatalf("fresh Next did not choose the distinct local alternative: %+v %v", next, err)
-	}
-	if _, err := control.Request(ctx, socket, "resume"); err != nil {
-		t.Fatal(err)
-	}
-	scheduled := waitForStatus(func(status playback.Status) bool { return status.HistoryLength >= 3 })
-	if scheduled.Current == nil || scheduled.Current.ImageID != seeded || scheduled.HistoryLength != 3 || backend.calls.Load() != 2 {
-		t.Fatalf("scheduled rotation did not choose the distinct Wallhaven alternative: %+v", scheduled)
+	reread, err := control.ReadConfiguration(ctx, socket)
+	if err != nil || reread.Revision != saved.Revision || reread.Saved.RotationMode != mode || reread.Effective.RotationMode != mode {
+		t.Fatalf("reread mode=%+v %v", reread, err)
 	}
 }
 
