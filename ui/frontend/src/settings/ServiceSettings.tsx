@@ -32,7 +32,8 @@ export function ServiceSettings() {
     readEpoch = useRef(0);
   const [pending, setPending] = useState<Confirmation | null>(null);
   const state = result?.service,
-    blocked = working || Boolean(result?.busy) || client.busy;
+    blocked = working || Boolean(result?.busy) || client.busy,
+    shouldRead = client.page === 'settings' || working || Boolean(result?.busy);
   const publish = useCallback((next: ServiceResult) => {
     resultRef.current = next;
     setResult(next);
@@ -59,7 +60,7 @@ export function ServiceSettings() {
     return pending;
   }, [publish]);
   useEffect(() => {
-    if (client.page !== 'settings' && !working && !result?.busy) return;
+    if (!shouldRead) return;
     const epoch = readEpoch;
     void read();
     const interval = setInterval(() => void read(), 3000);
@@ -68,7 +69,7 @@ export function ServiceSettings() {
       epoch.current++;
       readPending.current = null;
     };
-  }, [client.page, working, result?.busy, read]);
+  }, [shouldRead, read]);
   async function command(
     operation: Operation,
     origin: HTMLElement | null = document.activeElement instanceof HTMLElement
