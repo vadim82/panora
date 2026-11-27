@@ -455,3 +455,20 @@ it('StrictMode polls hidden native documents without wallpaper actions and clean
     vi.useRealTimers();
   }
 });
+
+it('does not accept a passive response after a newer same-instance status', async () => {
+  const mock = installBridge(),
+    client = createClient();
+  await client.refresh();
+  const pending = deferred<Awaited<ReturnType<typeof mock.CacheStatus>>>();
+  mock.CacheStatus.mockReturnValue(pending.promise);
+  const read = client.request('CacheStatus', [], { passive: true });
+  await waitFor(() => expect(mock.CacheStatus).toHaveBeenCalled());
+  const newer = structuredClone(snapshot);
+  newer.status!.paused = !snapshot.status!.paused;
+  mock.Status.mockResolvedValue(newer);
+  await client.refresh({ background: true });
+  pending.resolve(structuredClone(snapshot));
+  await read;
+  expect(client.getState().snapshot?.status?.paused).toBe(newer.status!.paused);
+});

@@ -94,7 +94,8 @@ export function RotationSettings() {
       error: string;
       measuredAt: Date | null;
     } | null>(null),
-    [cacheLoading, setCacheLoading] = useState(false);
+    [cacheLoading, setCacheLoading] = useState(false),
+    [usageOpen, setUsageOpen] = useState(false);
   const [configFileError, setConfigFileError] = useState('');
   const activeMeasurement =
       cacheScope !== null && measurement?.scope === cacheScope ? measurement : null,
@@ -127,7 +128,7 @@ export function RotationSettings() {
       epoch = cacheEpoch.current;
     if (scope === null) return;
     setCacheLoading(true);
-    const pending = request('CacheStatus')
+    const pending = request('CacheStatus', [], { passive: true })
       .then((result) => {
         if (epoch !== cacheEpoch.current || scope !== cacheScopeRef.current) return;
         if (result.code === 'busy') {
@@ -154,11 +155,26 @@ export function RotationSettings() {
     return pending;
   }, [request]);
   useEffect(() => {
-    if (client.connected && client.configuration && !client.busy && !cacheRequested.current) {
+    if (
+      usageOpen &&
+      client.page === 'settings' &&
+      client.connected &&
+      client.configuration &&
+      !client.busy &&
+      !cacheRequested.current
+    ) {
       cacheRequested.current = true;
       void readCache();
     }
-  }, [client.connected, client.configuration, client.busy, cacheScope, readCache]);
+  }, [
+    usageOpen,
+    client.page,
+    client.connected,
+    client.configuration,
+    client.busy,
+    cacheScope,
+    readCache,
+  ]);
   const draft = editor?.draft || {
       interval: '',
       rotation_mode: 'balance_sources',
@@ -490,7 +506,7 @@ export function RotationSettings() {
       <Notice id="rotation-storage-notice" hidden={!notice}>
         {notice}
       </Notice>
-      <details>
+      <details onToggle={(event) => setUsageOpen(event.currentTarget.open)}>
         <summary>Storage usage</summary>
         {current?.cache_path && (
           <p className="subtext settings-path">

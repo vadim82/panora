@@ -197,7 +197,7 @@ export function createClient() {
   const request = (async (
     method: keyof Bridge,
     args: unknown[] = [],
-    { mutation = false, settings = true, shouldSend }: RequestOptions = {},
+    { mutation = false, passive = false, settings = true, shouldSend }: RequestOptions = {},
   ) => {
     const failure = (code: string, error: string) => ({ code, error });
     const guard = () => {
@@ -220,17 +220,21 @@ export function createClient() {
         return failure('busy', 'Check the current playback state before continuing.');
       return null;
     };
+    if (passive && mutation)
+      return failure('invalid_request', 'A passive read cannot mutate state.');
     if (foreground || serviceBusy)
       return failure('busy', 'Another operation is running. Try again when it finishes.');
     const denied = guard();
     if (denied) return denied;
-    foreground = true;
+    if (!passive) foreground = true;
     update();
     try {
       if (refreshInFlight) await refreshInFlight.complete;
       const changed = guard();
       if (changed) return changed;
+      const snapshot = state.snapshot;
       const result = (await bridge(method, args as never)) as Result;
+      if (passive && snapshot !== state.snapshot) return result;
       if (result.configuration) adopt(result.configuration);
       if (mutation && !settings && result.code !== 'busy') {
         update({ uncertain: !result.connected });
@@ -271,7 +275,7 @@ export function createClient() {
           : 'Panora did not respond. Reconnect or try this read again.',
       );
     } finally {
-      foreground = false;
+      if (!passive) foreground = false;
       update();
     }
   }) as Request;

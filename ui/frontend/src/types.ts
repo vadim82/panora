@@ -538,6 +538,7 @@ export interface Bridge {
 }
 export interface RequestOptions {
   mutation?: boolean;
+  passive?: boolean;
   settings?: boolean;
   shouldSend?: () => boolean;
 }

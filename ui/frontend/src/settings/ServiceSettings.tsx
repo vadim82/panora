@@ -28,10 +28,12 @@ export function ServiceSettings() {
     resultRef = useRef<ServiceResult | null>(null);
   const [working, setWorking] = useState(false),
     workingRef = useRef(false),
-    readPending = useRef<Promise<void> | null>(null);
+    readPending = useRef<Promise<void> | null>(null),
+    readEpoch = useRef(0);
   const [pending, setPending] = useState<Confirmation | null>(null);
   const state = result?.service,
-    blocked = working || Boolean(result?.busy) || client.busy;
+    blocked = working || Boolean(result?.busy) || client.busy,
+    shouldRead = client.page === 'settings' || working || Boolean(result?.busy);
   const publish = useCallback((next: ServiceResult) => {
     resultRef.current = next;
     setResult(next);
@@ -40,28 +42,34 @@ export function ServiceSettings() {
   const read = useCallback(() => {
     if (readPending.current) return readPending.current;
     if (workingRef.current) return Promise.resolve();
+    const epoch = readEpoch.current;
     const pending = Promise.resolve().then(async () => {
       try {
-        publish(await bridge('ServiceState'));
+        const next = await bridge('ServiceState');
+        if (epoch === readEpoch.current) publish(next);
       } catch {
-        publish({
-          error: 'Service controls could not be read. Panora will check again automatically.',
-        });
+        if (epoch === readEpoch.current)
+          publish({
+            error: 'Service controls could not be read. Panora will check again automatically.',
+          });
       } finally {
-        readPending.current = null;
+        if (readPending.current === pending) readPending.current = null;
       }
     });
     readPending.current = pending;
     return pending;
   }, [publish]);
   useEffect(() => {
+    if (!shouldRead) return;
+    const epoch = readEpoch;
     void read();
     const interval = setInterval(() => void read(), 3000);
-    return () => clearInterval(interval);
-  }, [read]);
-  useEffect(() => {
-    if (client.page === 'settings') void read();
-  }, [client.page, read]);
+    return () => {
+      clearInterval(interval);
+      epoch.current++;
+      readPending.current = null;
+    };
+  }, [shouldRead, read]);
   async function command(
     operation: Operation,
     origin: HTMLElement | null = document.activeElement instanceof HTMLElement
