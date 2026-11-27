@@ -78,7 +78,8 @@ Choose **Open logs folder** in the same settings section to find
 
 Before moving, manually replacing or uninstalling Panora, select
 **Prepare to move or remove app…** in **Settings → Startup → Background service**.
-Confirm to stop the service and remove its login registration. Then quit
+Confirm to stop the managed service and remove its login registration. A separately
+started service keeps running. Then quit
 Panora and move or replace the complete app in Finder.
 
 Your settings, history, exclusions and original images stay in place. Opening

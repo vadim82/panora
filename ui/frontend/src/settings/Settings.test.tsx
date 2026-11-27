@@ -869,7 +869,7 @@ describe('installed service controls', () => {
     expect(
       screen.getByRole('alertdialog', { name: 'Prepare to move or remove Panora?' }),
     ).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Stop and remove startup' }));
+    await user.click(screen.getByRole('button', { name: 'Remove startup' }));
     expect(mock.ServiceCommand).toHaveBeenCalledExactlyOnceWith('remove_startup');
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
   });
