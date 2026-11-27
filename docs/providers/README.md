@@ -8,6 +8,7 @@ and rotation.
 | --- | --- |
 | [Local files](local.md) | Folders containing JPEG, PNG, or static WebP files |
 | [Wallhaven](wallhaven.md) | Named SFW searches |
+| [Alpha Coders](alpha-coders.md) | Named family-friendly searches using a personal API key |
 | [Omarchy theme](omarchy.md) | The active theme’s native still backgrounds |
 
 ## Provider settings
@@ -51,7 +52,7 @@ The [Next workflow](../architecture.md#what-happens-when-you-run-next) explains 
 
 The service runs the bundled local provider as `panora provider local`, one
 child process per JSON-RPC call. Installed provider programs use the same
-stdin/stdout contract. The service runs Wallhaven in process and handles the
+stdin/stdout contract. The service runs Wallhaven and Alpha Coders in process and handles the
 active Omarchy theme through its built-in discovery path.
 
 Both `panora provider local` and `panora provider wallhaven` are available for

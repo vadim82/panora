@@ -108,6 +108,7 @@ export interface Preferences {
   cache_max_bytes: number;
 }
 export interface SourceImageRules {
+  ratio_tolerance_percent?: number;
   exact_resolutions?: string[];
   min_width: number;
   min_height: number;
@@ -191,6 +192,39 @@ export interface OmarchyThemePreview {
     jpeg: string;
   }[];
 }
+export interface AlphaTag {
+  id: number;
+  name: string;
+  wallpaper_count?: number;
+}
+export interface AlphaSample {
+  title: string;
+  width: number;
+  height: number;
+  thumbnail: string;
+  page?: string;
+}
+export interface AlphaCheck {
+  count: number;
+  scopes: { name: string; count: number; pages: number; more: boolean; error?: string }[];
+  samples: AlphaSample[];
+}
+export interface AlphaRequest {
+  action: 'status' | 'connect' | 'remove' | 'tags' | 'check' | 'thumbnail';
+  key?: string;
+  prefix?: string;
+  settings?: ProviderValues;
+  image_rules?: SourceImageRules;
+  thumbnail?: string;
+}
+export interface AlphaResult {
+  connected: boolean;
+  tags?: AlphaTag[];
+  check?: AlphaCheck;
+  thumbnail?: string;
+  error?: string;
+}
+
 export interface ProviderEditorDescription {
   id: string;
   name: string;
@@ -472,6 +506,8 @@ export interface Bridge {
   AddSearch(edit: SearchEdit): Promise<Result>;
   UpdateSearch(edit: SearchEdit): Promise<Result>;
   RemoveSearch(edit: { revision: string; id: string }): Promise<Result>;
+  AlphaCoders(query: AlphaRequest): Promise<AlphaResult>;
+  OpenAlphaCodersPage(url: string): Promise<OpenResult>;
   AddProviderInput(edit: ProviderInputEdit): Promise<Result>;
   UpdateProviderInput(edit: ProviderInputEdit): Promise<Result>;
   RemoveProviderInput(edit: ProviderInputEdit): Promise<Result>;

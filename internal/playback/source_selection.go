@@ -120,11 +120,15 @@ func providerInputs(p ProviderConfig, maxDepth int, defaults SourceImageRules) [
 		raw, _ := json.Marshal(settings)
 		inputs = append(inputs, providerInput{inherited: search.ImageRules == nil, rules: effective, id: search.ID, revision: revision, config: raw, interval: refreshInterval(p.RefreshInterval, search.RefreshInterval), disabled: !search.enabled()})
 	}
+	externalInterval := p.RefreshInterval
+	if p.ID == source.AlphaCodersID && externalInterval == "" {
+		externalInterval = "2h"
+	}
 	for _, input := range p.Inputs {
 		settings := json.RawMessage(input.Values)
 		effective := rules(input.ImageRules)
 		revision := inputDiscoveryRevision(p.ID, input.ID, settings, effective)
-		inputs = append(inputs, providerInput{inherited: input.ImageRules == nil, rules: effective, id: input.ID, revision: revision, config: settings, interval: refreshInterval(p.RefreshInterval, ""), disabled: !input.enabled()})
+		inputs = append(inputs, providerInput{inherited: input.ImageRules == nil, rules: effective, id: input.ID, revision: revision, config: settings, interval: refreshInterval(externalInterval, ""), disabled: !input.enabled()})
 	}
 	return inputs
 }
@@ -188,7 +192,7 @@ func (s *Service) selectionPools(ctx context.Context, config Config, budget int,
 	shuffle := config.Playback.RotationMode == rotationShuffleAllImages
 	resolveRules := s.sourceRuleResolverForBackend(ctx, config, selection.backend)
 	for _, p := range config.Providers {
-		if !p.Enabled || source.ValidExternalID(p.ID) && s.request.provider(p.ID) == nil {
+		if !p.Enabled || source.ValidInputProviderID(p.ID) && !s.request.inputProviderAvailable(p.ID) {
 			continue
 		}
 		group := providerPool{id: p.ID}

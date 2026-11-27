@@ -20,8 +20,18 @@ export interface SourceRuleDraft {
   min_height: string;
   ratio: string;
   ratio_presets: string;
+  ratio_tolerance_percent?: string;
 }
 const allImages: Rules = { min_width: 1, min_height: 1, ratio: 'any', ratio_presets: [] };
+const alphaResolutions = [
+  ['1x1', 'No minimum'],
+  ['1920x1080', '1080p · 1920 × 1080'],
+  ['2560x1440', '1440p · 2560 × 1440'],
+  ['3840x2160', '4K · 3840 × 2160'],
+  ['2560x720', '32:9 · 2560 × 720'],
+  ['3840x1080', '32:9 · 3840 × 1080'],
+  ['5120x1440', '32:9 · 5120 × 1440'],
+];
 const presets = ['16:9', '16:10', '21:9', '32:9', '4:3', '3:2', '1:1', '9:16'];
 const ruleKeys = [
   'rule_mode',
@@ -30,6 +40,7 @@ const ruleKeys = [
   'ratio',
   'ratio_presets',
   'exact_resolutions',
+  'ratio_tolerance_percent',
 ] as const;
 
 // Mode and values form one block. Field-wise rebasing can turn a pending custom
@@ -47,6 +58,7 @@ export function preserveSourceRuleEdits(
     min_height: rules.min_height,
     ratio: rules.ratio,
     ratio_presets: rules.ratio_presets,
+    ratio_tolerance_percent: rules.ratio_tolerance_percent,
   };
 }
 
@@ -62,10 +74,16 @@ export function sourceRuleDraft(
     min_height: String(rules.min_height),
     ratio: rules.ratio,
     ratio_presets: (rules.ratio_presets || []).join(','),
+    ratio_tolerance_percent: rules.ratio_tolerance_percent?.toString(),
   };
 }
 export function sourceRules(draft: SourceRuleDraft): Rules {
   return {
+    ...(draft.ratio === 'monitor-similar' &&
+      draft.ratio_tolerance_percent !== undefined && {
+        ratio_tolerance_percent:
+          draft.ratio_tolerance_percent === '' ? NaN : Number(draft.ratio_tolerance_percent),
+      }),
     ...(draft.exact_resolutions && { exact_resolutions: draft.exact_resolutions.split(',') }),
     min_width: Number(draft.min_width),
     min_height: Number(draft.min_height),
@@ -113,6 +131,9 @@ export function sourceRuleError(draft: SourceRuleDraft, inherited: ImageRules) {
     if (!Number.isSafeInteger(value) || value < 1)
       return { field, message: 'Enter a positive whole pixel dimension.' };
   }
+  const percent = rules.ratio_tolerance_percent;
+  if (percent !== undefined && (!Number.isInteger(percent) || percent < 0 || percent > 99))
+    return { field: 'ratio-percent', message: 'Enter a whole percentage from 0 to 99.' };
   if (rules.ratio === 'presets' && !rules.ratio_presets.length)
     return { field: 'ratio-presets', message: 'Choose at least one aspect ratio.' };
   if (
@@ -152,6 +173,7 @@ export function SourceRules({
 }: Props) {
   const ui = usePanora();
   const themeRules = provider === 'omarchy';
+  const alphaRules = provider === 'alpha-coders';
   const [editMinimum, setEditMinimum] = useState(false);
   const [preview, setPreview] = useState<RulePreview | null>(null);
   const [notice, setNotice] = useState('');
@@ -188,6 +210,9 @@ export function SourceRules({
   const mode = ['any', 'monitor', 'monitor-similar', 'presets'].includes(draft.ratio)
     ? draft.ratio
     : 'custom';
+  const dimensions = draft.min_width + 'x' + draft.min_height;
+  const alphaMinimum =
+    !editMinimum && alphaResolutions.some(([size]) => size === dimensions) ? dimensions : 'custom';
   const minimumMode =
     draft.exact_resolutions || editMinimum
       ? 'custom'
@@ -431,7 +456,31 @@ export function SourceRules({
                 </Select>
               </Field>
             )}
-            {!themeRules && <>{dimensionFields}</>}
+            {alphaRules && (
+              <Field htmlFor={`${prefix}-minimum`}>
+                Minimum resolution
+                <Select
+                  id={`${prefix}-minimum`}
+                  value={alphaMinimum}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setEditMinimum(value === 'custom');
+                    if (value !== 'custom') {
+                      const [min_width, min_height] = value.split('x');
+                      onChange({ min_width, min_height, exact_resolutions: '' });
+                    }
+                  }}
+                >
+                  {alphaResolutions.map(([size, label]) => (
+                    <option key={size} value={size}>
+                      {label}
+                    </option>
+                  ))}
+                  <option value="custom">Custom size</option>
+                </Select>
+              </Field>
+            )}
+            {!themeRules && !alphaRules && <>{dimensionFields}</>}
             <Field htmlFor={`${prefix}-ratio-mode`}>
               Aspect ratio
               <Select
@@ -446,7 +495,7 @@ export function SourceRules({
               >
                 <option value="any">{themeRules ? 'Any shape' : 'Any ratio'}</option>
                 <option value="monitor">Same shape as my screen</option>
-                {mode === 'monitor-similar' && (
+                {(alphaRules || mode === 'monitor-similar') && (
                   <option value="monitor-similar">Similar to my screen</option>
                 )}
                 <option value="presets">Selected ratios</option>
@@ -454,10 +503,32 @@ export function SourceRules({
               </Select>
             </Field>
           </div>
+          {alphaRules && alphaMinimum === 'custom' && (
+            <div className="rules-grid">{dimensionFields}</div>
+          )}
+          {alphaRules && mode === 'monitor-similar' && (
+            <Field
+              htmlFor={`${prefix}-ratio-percent`}
+              error={error?.field === 'ratio-percent' ? error.message : undefined}
+            >
+              Aspect ratio tolerance (%)
+              <NumberInput
+                id={`${prefix}-ratio-percent`}
+                min={0}
+                max={99}
+                step={1}
+                required
+                value={draft.ratio_tolerance_percent ?? '5'}
+                onChange={(event) => onChange({ ratio_tolerance_percent: event.target.value })}
+              />
+              <span className="subtext">Use 0 to match the screen shape exactly.</span>
+            </Field>
+          )}
           {themeRules && minimumMode === 'custom' && (
             <div className="rules-grid">{dimensionFields}</div>
           )}
           {!themeRules &&
+            !alphaRules &&
             (effective.min_width !== 1 ||
               effective.min_height !== 1 ||
               draft.exact_resolutions) && (

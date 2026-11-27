@@ -82,7 +82,7 @@ func (s *Service) OmarchyThemePreview(ctx context.Context, page, limit int) (Oma
 		}
 	}
 	rules := effectiveSourceRules(config, config.OmarchyTheme.ImageRules)
-	ratio, _ := parseRatioRule(rules.Ratio, rules.RatioPresets, config.RatioTolerancePixels())
+	ratio := rules.ratioRule(config.RatioTolerancePixels())
 	s.statusMu.RLock()
 	backend := s.effectiveSettings.Backend
 	s.statusMu.RUnlock()

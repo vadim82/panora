@@ -21,7 +21,7 @@ type configurationService interface {
 }
 
 func handleConfiguration(ctx context.Context, w http.ResponseWriter, r *http.Request, service Service) bool {
-	if handleSearchConfiguration(ctx, w, r, service) || handleProviderEditor(ctx, w, r, service) {
+	if handleSearchConfiguration(ctx, w, r, service) || handleProviderEditor(ctx, w, r, service) || handleAlphaCoders(ctx, w, r, service) {
 		return true
 	}
 	if r.URL.Path != "/v1/configuration" && r.URL.Path != "/v1/configuration/folders" {

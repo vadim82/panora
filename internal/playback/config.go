@@ -288,7 +288,7 @@ func ParseConfig(data []byte) (Config, *RatioRule, error) {
 				}
 			}
 		}
-		if !source.ValidExternalID(p.ID) && len(p.Inputs) > 0 {
+		if !source.ValidInputProviderID(p.ID) && len(p.Inputs) > 0 {
 			return config, nil, fmt.Errorf("bundled provider %q does not accept plugin inputs", p.ID)
 		}
 		switch p.ID {
@@ -331,7 +331,7 @@ func ParseConfig(data []byte) (Config, *RatioRule, error) {
 			}
 
 		default:
-			if !source.ValidExternalID(p.ID) || len(p.Folders) > 0 || len(p.Searches) > 0 {
+			if !source.ValidInputProviderID(p.ID) || len(p.Folders) > 0 || len(p.Searches) > 0 {
 				return config, nil, fmt.Errorf("unknown provider or unsupported inputs for %q", p.ID)
 			}
 			for _, input := range p.Inputs {

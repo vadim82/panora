@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -23,7 +24,13 @@ type Attribution struct {
 }
 
 // FilterHints are optional provider-side optimizations, never eligibility proof.
+type RatioBounds struct {
+	Min float64 `json:"min"`
+	Max float64 `json:"max"`
+}
+
 type FilterHints struct {
+	RatioRange       *RatioBounds `json:"ratio_range,omitempty"`
 	MinWidth         int          `json:"min_width,omitempty"`
 	MinHeight        int          `json:"min_height,omitempty"`
 	Ratio            *Dimensions  `json:"ratio,omitempty"`
@@ -40,6 +47,22 @@ func validURL(value string) bool {
 	return err == nil && len(value) <= 4096 && u.Scheme == "https" && u.Hostname() != "" && u.User == nil && u.RawQuery == "" && !u.ForceQuery && u.Fragment == "" && !strings.ContainsAny(value, "\r\n\t ")
 }
 
+// AlphaCodersPage accepts only the public wallpaper permalink, which uses an
+// item query argument. It cannot carry credentials or tracking parameters.
+func AlphaCodersPage(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host != "wall.alphacoders.com" || u.User != nil ||
+		u.Path != "/big.php" || u.Fragment != "" || u.RawPath != "" || len(raw) > 128 {
+		return ""
+	}
+	value := u.Query().Get("i")
+	n, err := strconv.ParseUint(value, 10, 64)
+	if err != nil || n == 0 || u.RawQuery != "i="+strconv.FormatUint(n, 10) {
+		return ""
+	}
+	return raw
+}
+
 func validateMetadata(d *Dimensions, a *Attribution, requirements []string) error {
 	if !validDimensions(d) || len(requirements) != 0 {
 		return fmt.Errorf("unsupported provider dimensions or requirements")
@@ -49,7 +72,7 @@ func validateMetadata(d *Dimensions, a *Attribution, requirements []string) erro
 			return fmt.Errorf("provider attribution is too long")
 		}
 		for _, value := range []string{a.PageURL, a.AuthorURL, a.LicenseURL, a.SourceURL} {
-			if value != "" && !validURL(value) {
+			if value != "" && !validURL(value) && !(value == a.PageURL && AlphaCodersPage(value) != "") {
 				return fmt.Errorf("invalid public attribution URL")
 			}
 		}

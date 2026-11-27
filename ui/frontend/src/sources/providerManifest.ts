@@ -1,4 +1,6 @@
-export type ProviderValue = string | number | boolean | string[];
+import type { AlphaTag } from '../types';
+
+export type ProviderValue = string | number | boolean | string[] | AlphaTag[];
 export type ProviderValues = Record<string, ProviderValue | undefined>;
 export type EditorOption = { value: string; label: string };
 

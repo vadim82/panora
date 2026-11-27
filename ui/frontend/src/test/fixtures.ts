@@ -131,6 +131,8 @@ export function installBridge() {
     AddProviderInput: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
     UpdateProviderInput: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
     RemoveProviderInput: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
+    AlphaCoders: vi.fn(async () => ({ connected: false })),
+    OpenAlphaCodersPage: vi.fn(async () => ({ opened: false })),
     SuggestProviderInput: vi.fn(async () => ({ values: [] })),
     RemoveSearch: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
     Action: vi.fn(async () => structuredClone(snapshot)),

@@ -78,6 +78,10 @@ func (i ImageInfo) meetsMinResolution(minWidth, minHeight int) bool {
 }
 
 func (i ImageInfo) matchesRatio(ratio AspectRatio, similar bool, tolerancePixels int) bool {
+	return i.matchesRatioTolerance(ratio, similar, tolerancePixels, 5)
+}
+
+func (i ImageInfo) matchesRatioTolerance(ratio AspectRatio, similar bool, tolerancePixels, percent int) bool {
 	if i.Width <= 0 || i.Height <= 0 || ratio.Width <= 0 || ratio.Height <= 0 {
 		return false
 	}
@@ -96,11 +100,14 @@ func (i ImageInfo) matchesRatio(ratio AspectRatio, similar bool, tolerancePixels
 	differenceHi, _ := bits.Sub64(leftHi, rightHi, borrow)
 
 	if similar {
-		// Accept a width-to-height ratio within 5% of the display ratio.
-		// Divide the expected cross product by 20 to avoid overflow and rounding.
-		const denominator = 20
-		toleranceHi := expectedHi / denominator
-		toleranceLo, _ := bits.Div64(expectedHi%denominator, expectedLo, denominator)
+		// Divide before multiplying to keep the 128-bit intermediate bounded.
+		const denominator = 100
+		qHi := expectedHi / denominator
+		qLo, rem := bits.Div64(expectedHi%denominator, expectedLo, denominator)
+		carry, toleranceLo := bits.Mul64(qLo, uint64(percent))
+		toleranceHi := qHi*uint64(percent) + carry
+		toleranceLo, carry = bits.Add64(toleranceLo, rem*uint64(percent)/denominator, 0)
+		toleranceHi += carry
 		return differenceHi < toleranceHi || differenceHi == toleranceHi && differenceLo <= toleranceLo
 	}
 

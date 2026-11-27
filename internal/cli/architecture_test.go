@@ -14,20 +14,21 @@ import (
 // individual files or prescribing how each package implements its responsibility.
 func TestInternalPackageBoundaries(t *testing.T) {
 	allowed := map[string]map[string]bool{
-		"appservice":        {"control": true, "filelock": true},
-		"cli":               {"appservice": true, "control": true, "desktop": true, "playback": true, "service": true, "source": true, "sources/local": true, "sources/wallhaven": true},
-		"service":           {"control": true, "playback": true},
-		"playback":          {"desktop": true, "filelock": true, "source": true, "localfiles": true, "catalog": true, "cache": true, "omarchytheme": true},
-		"catalog":           {"source": true},
-		"cache":             {"source": true, "filelock": true, "localfiles": true},
-		"control":           {"playback": true, "filelock": true, "source": true},
-		"desktop":           {"filelock": true},
-		"filelock":          {},
-		"source":            {"filelock": true, "localfiles": true},
-		"omarchytheme":      {"localfiles": true},
-		"localfiles":        {},
-		"sources/local":     {"source": true, "localfiles": true},
-		"sources/wallhaven": {"source": true},
+		"appservice":          {"control": true, "filelock": true},
+		"cli":                 {"appservice": true, "control": true, "desktop": true, "playback": true, "service": true, "source": true, "sources/local": true, "sources/wallhaven": true, "sources/alphacoders": true},
+		"service":             {"control": true, "playback": true},
+		"playback":            {"desktop": true, "filelock": true, "source": true, "localfiles": true, "catalog": true, "cache": true, "omarchytheme": true},
+		"catalog":             {"source": true},
+		"cache":               {"source": true, "filelock": true, "localfiles": true},
+		"control":             {"playback": true, "filelock": true, "source": true},
+		"desktop":             {"filelock": true},
+		"filelock":            {},
+		"source":              {"filelock": true, "localfiles": true},
+		"omarchytheme":        {"localfiles": true},
+		"localfiles":          {},
+		"sources/local":       {"source": true, "localfiles": true},
+		"sources/wallhaven":   {"source": true},
+		"sources/alphacoders": {"source": true, "localfiles": true},
 	}
 	for name, dependencies := range allowed {
 		dir := filepath.Join("..", "..", "internal", name)

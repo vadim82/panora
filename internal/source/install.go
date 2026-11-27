@@ -19,11 +19,13 @@ const (
 	maxExecutableBytes    = 64 << 20
 )
 
+const AlphaCodersID = "alpha-coders"
+
 var externalID = regexp.MustCompile(`^[a-z][a-z0-9-]{0,47}$`)
 
 // ValidExternalID excludes the bundled provider namespace.
 func ValidExternalID(id string) bool {
-	return id != "local" && id != "wallhaven" && id != "omarchy" && externalID.MatchString(id)
+	return id != "local" && id != "wallhaven" && id != "omarchy" && id != AlphaCodersID && externalID.MatchString(id)
 }
 
 // InstalledPlugin represents a registry entry, including one that needs repair.
@@ -32,6 +34,9 @@ type InstalledPlugin struct {
 	Client *Client
 	Err    error
 }
+
+// ValidInputProviderID includes built-in providers that use the shared input editor.
+func ValidInputProviderID(id string) bool { return id == AlphaCodersID || ValidExternalID(id) }
 
 func PluginDirectory() (string, error) {
 	directory, err := os.UserConfigDir()

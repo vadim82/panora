@@ -113,7 +113,7 @@ func (s *Service) materializeImage(ctx context.Context, choice playbackChoice, c
 	if err := enabledHistoryOrigin(choice.identity, candidate, config); err != nil {
 		return choice, err
 	}
-	if source.ValidExternalID(choice.identity.ProviderID) && s.request.provider(choice.identity.ProviderID) == nil {
+	if source.ValidInputProviderID(choice.identity.ProviderID) && !s.request.inputProviderAvailable(choice.identity.ProviderID) {
 		return choice, fmt.Errorf("provider is unavailable")
 	}
 	rules, ratio, resolution := s.resolveSourceRulesForBackend(ctx, config, choice.identity, selection.backend)

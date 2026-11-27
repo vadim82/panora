@@ -586,3 +586,25 @@ the user choose whether to try again.
 The [Omarchy integration guide](../integrations/omarchy/README.md#optional-hyprland-shortcuts)
 shows how to use an absolute CLI path for native Next and Previous shortcuts.
 Use the same private socket as the service when you override the default path.
+
+
+## Alpha Coders editor
+
+`POST /v1/providers/alpha-coders` takes one JSON object with an `action`.
+Use the existing [provider input routes](#installed-provider-editor-routes)
+to save an input. The private socket is the only editor entry point.
+
+| Action | Additional fields | Result |
+| --- | --- | --- |
+| `status` | None | Whether a local credential is present |
+| `connect` | `key` | Validates and replaces the credential, then returns connection state |
+| `remove` | None | Removes the credential and returns connection state |
+| `tags` | `prefix` | Up to ten approved tags with IDs and catalog totals before filters |
+| `check` | `settings`, optional `image_rules` | Distinct candidate count, per-query page and candidate counts, partial status, and sample locations |
+| `thumbnail` | `thumbnail` | A bounded public CDN thumbnail as an image data URL |
+
+A check reads the supplied draft and inspects up to two metadata pages per
+selected tag or keyword. Omit `image_rules` to inherit the saved shared rules.
+Checks fetch no originals and make no catalog or playback changes. Connection
+actions return only the connection state. Credentials are excluded from
+configuration, status, discovery references, and candidate URLs.

@@ -31,3 +31,12 @@ func (r *Request) provider(id string) source.Provider {
 	}
 	return r.Providers[id]
 }
+
+func (r *Request) inputProviderAvailable(id string) bool {
+	provider := r.provider(id)
+	if id == source.AlphaCodersID {
+		editor, ok := provider.(source.AlphaEditor)
+		return ok && editor.Connected()
+	}
+	return provider != nil
+}
