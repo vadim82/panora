@@ -2,6 +2,7 @@ import { ImageSettings } from './ImageSettings';
 import { RotationSettings } from './RotationSettings';
 import { ServiceSettings } from './ServiceSettings';
 import { usePanora } from '../client';
+import { SaveFolderSettings } from './SaveFolderSettings';
 
 export function SettingsScreen() {
   const { navigate } = usePanora();
@@ -18,6 +19,7 @@ export function SettingsScreen() {
       <ServiceSettings />
       <ImageSettings />
       <RotationSettings />
+      <SaveFolderSettings />
     </>
   );
 }

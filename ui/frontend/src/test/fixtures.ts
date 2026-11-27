@@ -3,6 +3,7 @@ import type { Mock } from 'vitest';
 import type { Bridge, Capabilities, Configuration, Snapshot } from '../types';
 
 export const configuration: Configuration = {
+  save_folder: '',
   revision: 'reviewed',
   saved: {
     backend: 'macos',
@@ -120,6 +121,8 @@ export function installBridge() {
     })),
     UpdateConfiguration: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
     PickFolder: vi.fn(async () => ({ canceled: true })),
+    PickSaveFolder: vi.fn(async () => ({ canceled: true })),
+    SaveWallpaper: vi.fn(async () => ({ saved: true, folder_name: 'Favorites' })),
     AddFolderSettings: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
     UpdateFolder: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
     RemoveFolder: vi.fn(async () => ({ configuration: structuredClone(configuration) })),

@@ -29,6 +29,11 @@ func runDesktop(socket string, manager serviceManager, startupError string, abou
 	client.picker = func(ctx context.Context) (string, error) {
 		return wailsruntime.OpenDirectoryDialog(ctx, wailsruntime.OpenDialogOptions{Title: "Choose wallpaper folder"})
 	}
+	client.savePicker = func(ctx context.Context) (string, error) {
+		return wailsruntime.OpenDirectoryDialog(ctx, wailsruntime.OpenDialogOptions{
+			Title: "Choose save folder", CanCreateDirectories: true,
+		})
+	}
 	var cancel context.CancelFunc
 	var closeQuitEndpoint func()
 	ready := make(chan struct{})

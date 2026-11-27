@@ -2,6 +2,7 @@ package playback
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
 )
 
@@ -9,6 +10,7 @@ import (
 // identities have dedicated operations; clients cannot replace raw TOML.
 // Pointers distinguish omitted fields from explicit false and zero values.
 type UpdateConfigurationRequest struct {
+	SaveFolder           *string   `json:"save_folder,omitempty"`
 	Revision             string    `json:"revision"`
 	Backend              *string   `json:"backend,omitempty"`
 	Fit                  *string   `json:"fit,omitempty"`
@@ -26,12 +28,20 @@ type UpdateConfigurationRequest struct {
 }
 
 func (s *Service) UpdateConfiguration(ctx context.Context, request UpdateConfigurationRequest) (Configuration, error) {
-	if request.Backend == nil && request.Fit == nil && request.Upscale == nil && request.Interval == nil && request.RotationMode == nil && request.CacheMaxImages == nil && request.CacheMaxBytes == nil && request.MinWidth == nil && request.MinHeight == nil && request.Ratio == nil && request.RatioPresets == nil && request.RatioTolerancePixels == nil && request.MaxDepth == nil {
+	if request.SaveFolder == nil && request.Backend == nil && request.Fit == nil && request.Upscale == nil && request.Interval == nil && request.RotationMode == nil && request.CacheMaxImages == nil && request.CacheMaxBytes == nil && request.MinWidth == nil && request.MinHeight == nil && request.Ratio == nil && request.RatioPresets == nil && request.RatioTolerancePixels == nil && request.MaxDepth == nil {
 		return Configuration{}, &Error{Code: "invalid_request", Message: "provide at least one setting to update"}
+	}
+	if folder := request.SaveFolder; folder != nil && *folder != "" {
+		if !validFolderPath(*folder) {
+			return Configuration{}, &Error{Code: "invalid_request", Message: "save folder must be an absolute folder path"}
+		}
+		clean := filepath.Clean(*folder)
+		request.SaveFolder = &clean
 	}
 	var desktopUpdate *runtimeDesktopSettings
 	result, err := s.editConfiguration(ctx, request.Revision, func(config *Config) (bool, error) {
-		changed := setPreference(&config.Desktop.Backend, request.Backend)
+		changed := setPreference(&config.SaveFolder, request.SaveFolder)
+		changed = setPreference(&config.Desktop.Backend, request.Backend) || changed
 		changed = setPreference(&config.Desktop.Fit, request.Fit) || changed
 		changed = setPreference(&config.Desktop.Upscale, request.Upscale) || changed
 		changed = setPreference(&config.Playback.Interval, request.Interval) || changed
