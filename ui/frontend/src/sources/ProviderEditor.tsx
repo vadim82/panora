@@ -230,7 +230,9 @@ function ManifestEditor({
       : `Add ${description?.name || 'source'}`;
 
   return (
-    <div className="settings-panel source-editor manifest-source-editor">
+    <div
+      className={`settings-panel source-editor manifest-source-editor${alpha ? ' alpha-source-editor' : ''}`}
+    >
       <form
         aria-labelledby="provider-editor-title"
         noValidate
@@ -318,6 +320,16 @@ function ManifestEditor({
               }
             />
           )}
+          {!existing && (
+            <label className="search-check">
+              <input
+                type="checkbox"
+                checked={enabled}
+                onChange={(event) => setEnabled(event.target.checked)}
+              />
+              Include in rotation
+            </label>
+          )}
           {alpha && alphaConnected && (
             <AlphaCodersResults
               disabled={!mutable || Boolean(sourceRuleError(rules, config.rules))}
@@ -328,16 +340,6 @@ function ManifestEditor({
                 ...(rules.rule_mode === 'custom' && { image_rules: sourceRules(rules) }),
               }}
             />
-          )}
-          {!existing && (
-            <label className="search-check">
-              <input
-                type="checkbox"
-                checked={enabled}
-                onChange={(event) => setEnabled(event.target.checked)}
-              />
-              Include in rotation
-            </label>
           )}
         </fieldset>
         {editor.missing && (

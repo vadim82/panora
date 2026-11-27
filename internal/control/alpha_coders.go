@@ -46,7 +46,10 @@ func handleAlphaCoders(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	operation, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 	result, err := editor.AlphaCoders(operation, req)
-	writeResult(w, result, err)
+	writeResult(w, struct {
+		Version int `json:"version"`
+		playback.AlphaResult
+	}{Version: APIVersion, AlphaResult: result}, err)
 	return true
 }
 

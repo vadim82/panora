@@ -226,7 +226,11 @@ export function AlphaCodersFields({
               />
             </Field>
           )}
-          <Button aria-expanded={more} onClick={() => setMore(!more)}>
+          <Button
+            className="alpha-options-toggle"
+            aria-expanded={more}
+            onClick={() => setMore(!more)}
+          >
             More options
           </Button>
           {more && (
