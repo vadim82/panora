@@ -38,7 +38,7 @@ async function ready() {
   await waitFor(() => expect(screen.getByRole('button', { name: 'Next wallpaper' })).toBeEnabled());
 }
 describe('Now', () => {
-  it('chooses a folder once, opens the saved folder and reports an already saved wallpaper', async () => {
+  it('saves from Image actions, remembers the folder and reports an already saved wallpaper', async () => {
     const mock = installBridge();
     const user = userEvent.setup();
     const path = '/Pictures/Favorites';
@@ -51,12 +51,21 @@ describe('Now', () => {
       folder_name: 'Favorites',
     }).mockResolvedValueOnce({ saved: true, already_saved: true, folder_name: 'Favorites' });
     mount();
-    const save = await screen.findByRole('button', { name: 'Save to folder' });
-    save.focus();
+    await ready();
+    const menu = screen.getByLabelText('Image actions');
+    const disclosure = menu.closest('details');
+    expect(disclosure).toContainElement(screen.getByRole('button', { name: 'Save' }));
+    expect(disclosure?.open).toBe(false);
+    menu.focus();
+    await user.keyboard('{Enter}{Tab}');
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(save).toHaveFocus();
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(save).toBeEnabled());
+    expect(menu).toHaveFocus();
+    expect(menu.closest('details')?.open).toBe(false);
     expect(mock.SaveWallpaper).not.toHaveBeenCalled();
     expect(mock.UpdateConfiguration).not.toHaveBeenCalled();
+    await user.click(menu);
     await user.click(save);
     expect(await screen.findByText('Saved to Favorites')).toBeVisible();
     await waitFor(() =>
@@ -65,8 +74,7 @@ describe('Now', () => {
         save_folder: path,
       }),
     );
-    await user.click(screen.getByRole('button', { name: 'Open folder' }));
-    expect(mock.OpenSavedFolder).toHaveBeenCalledExactlyOnceWith();
+    await user.click(menu);
     await waitFor(() => expect(save).toBeEnabled());
     await user.click(save);
     expect(await screen.findByText('Already saved')).toBeVisible();
@@ -92,7 +100,9 @@ describe('Now', () => {
       code: 'current_changed',
     });
     mount();
-    await user.click(await screen.findByRole('button', { name: 'Save to folder' }));
+    await ready();
+    await user.click(screen.getByLabelText('Image actions'));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     const latest = structuredClone(snapshot);
     latest.status!.current = { ...current, id: 'newly-accepted', image_id: 2 };
     mock.Status.mockResolvedValue(latest);

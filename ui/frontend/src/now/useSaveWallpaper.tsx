@@ -1,27 +1,29 @@
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { usePanora } from '../client';
-import { restoreFormFocus } from '../settings/forms';
-import { Button, FormActions, Notice } from '../components/ui';
+import { Button, Notice } from '../components/ui';
 
 interface Feedback {
   message: string;
   error?: boolean;
   chooseFolder?: boolean;
-  saved?: boolean;
 }
 
-export function SaveWallpaper({ disabled }: { disabled: boolean }) {
+export function useSaveWallpaper(disabled: boolean) {
   const ui = usePanora();
   const config = ui.liveConfiguration || ui.configuration;
   const { instance_id: instance, current } = ui.snapshot?.status || {};
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>();
-  if (config?.save_folder === undefined || !current || !instance) return null;
+  if (config?.save_folder === undefined || !current || !instance) return {};
 
-  async function save(pick: boolean) {
+  async function save(event: MouseEvent<HTMLButtonElement>, pick: boolean) {
     if (!config || !instance || !current || pending) return;
     const revision = config.revision;
-    const origin = document.activeElement;
+    const menu = event.currentTarget.closest('details');
+    if (menu) {
+      menu.querySelector('summary')?.focus();
+      menu.open = false;
+    }
     setPending(true);
     try {
       let folder: string | undefined;
@@ -60,7 +62,7 @@ export function SaveWallpaper({ disabled }: { disabled: boolean }) {
       const message = result.already_saved
         ? 'Already saved'
         : `Saved to ${result.folder_name || 'the chosen folder'}`;
-      setFeedback({ message, saved: true });
+      setFeedback({ message });
       if (folder) {
         const settings = await ui.request(
           'UpdateConfiguration',
@@ -73,50 +75,36 @@ export function SaveWallpaper({ disabled }: { disabled: boolean }) {
         if (!settings.configuration)
           setFeedback({
             message: message + '. The folder preference could not be confirmed.',
-            saved: true,
           });
       }
     } finally {
       setPending(false);
-      restoreFormFocus('save-wallpaper', ui, 'now', origin);
     }
   }
 
-  async function openFolder() {
-    const result = await ui.request('OpenSavedFolder', [], { settings: false });
-    if (!result.opened)
-      setFeedback({
-        message: result.error || 'The saved folder could not be opened.',
-        error: true,
-        saved: true,
-      });
-  }
-
-  return (
-    <div className="wallpaper-save">
-      <FormActions>
+  return {
+    actions: (
+      <>
         <Button
-          id="save-wallpaper"
           disabled={disabled}
           pending={pending}
-          onClick={() => void save(!config.save_folder)}
+          onClick={(event) => void save(event, !config.save_folder)}
         >
-          Save to folder
+          Save
         </Button>
         {feedback?.chooseFolder && (
-          <Button disabled={disabled} pending={pending} onClick={() => void save(true)}>
+          <Button disabled={disabled} pending={pending} onClick={(event) => void save(event, true)}>
             Choose another folder
           </Button>
         )}
-        {feedback?.saved && (
-          <Button disabled={ui.busy || pending} onClick={() => void openFolder()}>
-            Open folder
-          </Button>
-        )}
-      </FormActions>
-      <Notice tone={feedback?.error ? 'error' : 'success'} hidden={!feedback?.message}>
-        {feedback?.message}
-      </Notice>
-    </div>
-  );
+      </>
+    ),
+    notice: (
+      <div>
+        <Notice tone={feedback?.error ? 'error' : 'success'} hidden={!feedback?.message}>
+          {feedback?.message}
+        </Notice>
+      </div>
+    ),
+  };
 }

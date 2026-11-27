@@ -512,7 +512,6 @@ export function installFixture(
       savedWallpapers.add(key);
       return { saved: true, already_saved, folder_name: folder.split('/').pop() };
     },
-    OpenSavedFolder: async () => ({ opened: true }),
     AddFolderSettings: async (edit) => updateFolder(edit, true),
     UpdateFolder: async (edit) => updateFolder(edit, false),
     RemoveFolder: async (edit) => {

@@ -459,7 +459,6 @@ export interface Bridge {
   PickFolder(): Promise<FolderResult>;
   PickSaveFolder(): Promise<FolderResult>;
   SaveWallpaper(edit: SaveWallpaperEdit): Promise<SavedWallpaperResult>;
-  OpenSavedFolder(): Promise<OpenResult>;
   AddFolderSettings(edit: FolderEdit): Promise<Result>;
   UpdateFolder(edit: FolderEdit): Promise<Result>;
   RemoveFolder(edit: { revision: string; id: string }): Promise<Result>;

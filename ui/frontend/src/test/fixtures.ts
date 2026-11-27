@@ -123,7 +123,6 @@ export function installBridge() {
     PickFolder: vi.fn(async () => ({ canceled: true })),
     PickSaveFolder: vi.fn(async () => ({ canceled: true })),
     SaveWallpaper: vi.fn(async () => ({ saved: true, folder_name: 'Favorites' })),
-    OpenSavedFolder: vi.fn(async () => ({ opened: true })),
     AddFolderSettings: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
     UpdateFolder: vi.fn(async () => ({ configuration: structuredClone(configuration) })),
     RemoveFolder: vi.fn(async () => ({ configuration: structuredClone(configuration) })),

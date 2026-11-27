@@ -18,7 +18,6 @@ type Client struct {
 	socket          string
 	picker          func(context.Context) (string, error)
 	savePicker      func(context.Context) (string, error)
-	savedFolder     string // guarded by action
 	opener          func(context.Context, string) error
 	configOpener    func(context.Context, string) error
 	action          sync.Mutex

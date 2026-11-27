@@ -9,7 +9,7 @@ import { useAcceptedPreview } from './useAcceptedPreview';
 import { reviewImageRules, sourceAttention } from '../sources/SourceHealth';
 import { imageLabel } from '../imageLabel';
 import { WallpaperStrip } from './WallpaperStrip';
-import { SaveWallpaper } from './SaveWallpaper';
+import { useSaveWallpaper } from './useSaveWallpaper';
 import { hasLiveAspectRule, ThumbnailCache } from './thumbnailCache';
 import type { NavigationRequest, Snapshot } from '../types';
 
@@ -170,6 +170,7 @@ export function NowScreen() {
   const blocked =
     ui.busy || pendingRef.current || !ui.connected || ui.uncertain || Boolean(status?.busy);
   const playbackBlocked = blocked || onboarding.blocked || Boolean(status?.uncertain);
+  const saveWallpaper = useSaveWallpaper(playbackBlocked);
   const navigationBlocked =
     blocked ||
     (status?.uncertain ? onboarding.working || onboarding.enrolling : onboarding.blocked);
@@ -571,6 +572,7 @@ export function NowScreen() {
               </div>
             )}
             <ActionMenu className="preview-actions" id="image-actions" label="Image actions">
+              {saveWallpaper.actions}
               {metadata?.attribution?.page_url && (
                 <Button id="open-page" disabled={playbackBlocked} onClick={() => void open('page')}>
                   View on website ↗
@@ -600,7 +602,7 @@ export function NowScreen() {
       <section className="accepted" aria-labelledby="title">
         <h2 id="title">{title}</h2>
         <p id="source">{details}</p>
-        <SaveWallpaper disabled={playbackBlocked} />
+        {saveWallpaper.notice}
         <Notice id="open-notice" hidden={!openNotice}>
           {openNotice}
         </Notice>

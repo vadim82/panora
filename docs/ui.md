@@ -44,14 +44,14 @@ The title and navigation tabs stay visible as you scroll each section.
   Use **Pause rotation** to stop scheduled changes and keep manual navigation
   available. The **⋮** menu sits in the upper-right corner of the preview and
   opens above the neighboring cards. It
-  opens the original location or **Picture settings** and lets you exclude
-  the image. Restore exclusions individually in **History → Excluded**.
+  offers **Save**, opens the original location or **Picture settings**,
+  and lets you exclude the image. Restore exclusions individually in **History → Excluded**.
   If the wallpaper or service changes before Exclude is applied, review the
   current image before trying again.
-- **Save to folder** below the current wallpaper keeps a full-resolution copy.
+- **Save** in **⋮ Image actions** keeps a full-resolution copy.
   The first save asks for a folder. Later saves reuse it, and **Settings → Save
-  folder** lets you change the destination. **Open folder** opens the location
-  used for the last save. To rotate saved wallpapers, add the folder from
+  folder** lets you change the destination. Now confirms the save and names
+  the folder. To rotate saved wallpapers, add the folder from
   **Sources → Add folder**.
 - **Sources** manages folders, saved SFW Wallhaven searches, the active
   Omarchy theme, and inputs for installed providers. Open **Add source** to
