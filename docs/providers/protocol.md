@@ -243,13 +243,15 @@ JPEG, PNG and WebP filenames. Playback checks headers, rejects animated images
 and enforces rules and exclusions. Roots may be symlinks and links beneath the
 root are skipped.
 
-Each page walks the folder again, skipping the cursor's traversal offset and
-reading one extra path to detect another page. The cursor fingerprints the root,
-depth and host-supplied `config.revision`. Minimum dimensions and ratio do not
-change that fingerprint. Folder contents are not snapshotted: changes between
-pages can produce stale cursors or incomplete coverage. Listings never prove
-deletion. The host restarts once from null on `invalid_cursor` within the same
-job budget; another failure stops the attempt.
+Each page walks the folder again, checking that the path at the cursor's
+traversal offset matches a digest of the last returned path. It then reads one
+extra path to detect another page. The cursor fingerprints the root, depth and
+host-supplied `config.revision`. Minimum dimensions and ratio do not change that
+fingerprint. A missing or shifted anchor, a changed fingerprint or a cursor
+saved before path anchors were added returns `invalid_cursor`. The host
+restarts once from null within the same job budget and retains the previous
+complete catalog during the retry. Another failure stops the attempt.
+Folder contents can still change during a walk.
 
 Background discovery [persists pages and checkpoints](../catalog.md#discovery-transactions)
 in SQLite. Interrupted jobs resume committed cursors; completed scans restart at

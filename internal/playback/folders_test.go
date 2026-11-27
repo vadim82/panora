@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +93,76 @@ func TestFolderEditValidationPreservesSavedBytes(t *testing.T) {
 	_, err = service.RemoveFolder(ctx, RemoveFolderRequest{Revision: before.Revision, ID: "home"})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled=%v", err)
+	}
+}
+
+type singleImageLocalPage struct{ local.Provider }
+
+func (p singleImageLocalPage) Discover(ctx context.Context, params source.DiscoverParams) (source.Page, error) {
+	params.Limit = 1
+	return p.Provider.Discover(ctx, params)
+}
+
+func TestLocalDiscoveryRestartsAfterEarlierPathChanges(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		remove        bool
+		duringRestart []string
+		afterComplete []string
+	}{
+		{"deletion", true, []string{"b.png", "c.png", "d.png"}, []string{"c.png", "d.png"}},
+		{"insertion", false, []string{"a.png", "b.png", "c.png", "d.png"}, []string{"a.png", "b.png", "c.png", "d.png"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service, root := testService(t, &fakeWallpaperBackend{})
+			if err := os.Rename(filepath.Join(root, "a.png"), filepath.Join(root, "d.png")); err != nil {
+				t.Fatal(err)
+			}
+			service.request.Source = singleImageLocalPage{}
+			config, _, err := LoadConfig(service.request.ConfigPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p := config.Providers[0]
+			input := providerInputs(p, config.Filters.MaxDepth, sourceDefaultRules(config))[0]
+			ctx := t.Context()
+			requireCandidates := func(want []string) {
+				t.Helper()
+				rows, err := service.store.Candidates(ctx, p.ID, input.id, input.revision, 10)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ids := make([]string, 0, len(rows))
+				for _, row := range rows {
+					ids = append(ids, row.Candidate.ID)
+				}
+				slices.Sort(ids)
+				if !slices.Equal(ids, want) {
+					t.Fatalf("candidates=%v want %v", ids, want)
+				}
+			}
+			if counts, err := service.refreshInputCounts(ctx, p, input, 3); err != nil || counts.Pages != 3 {
+				t.Fatalf("initial scan: %+v %v", counts, err)
+			}
+			if counts, err := service.refreshInputCounts(ctx, p, input, 1); err == nil || counts.Pages != 1 {
+				t.Fatalf("refresh did not save a partial scan: %+v %v", counts, err)
+			}
+			if test.remove {
+				if err := os.Remove(filepath.Join(root, "b.png")); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				writeScanImage(t, filepath.Join(root, "a.png"), 2, 2)
+			}
+			if counts, err := service.refreshInputCounts(ctx, p, input, 2); err == nil || counts.Pages != 1 {
+				t.Fatalf("refresh did not restart from the first page: %+v %v", counts, err)
+			}
+			requireCandidates(test.duringRestart)
+			if _, err := service.refreshInputCounts(ctx, p, input, 3); err != nil {
+				t.Fatal(err)
+			}
+			requireCandidates(test.afterComplete)
+		})
 	}
 }
 

@@ -53,6 +53,7 @@ func (Provider) Validate(ctx context.Context, raw json.RawMessage) error {
 type cursor struct {
 	Config string `json:"config"`
 	Offset int    `json:"offset"`
+	Anchor string `json:"anchor"`
 }
 
 func (Provider) Discover(ctx context.Context, params source.DiscoverParams) (source.Page, error) {
@@ -72,14 +73,23 @@ func (Provider) Discover(ctx context.Context, params source.DiscoverParams) (sou
 		return page, source.Failure("invalid_cursor", "cursor is too large")
 	}
 	if len(params.Cursor) != 0 && !source.IsNull(params.Cursor) {
-		if err := source.Decode(params.Cursor, &position); err != nil || position.Config != fingerprint || position.Offset < 1 || position.Offset > 100000 {
+		if err := source.Decode(params.Cursor, &position); err != nil || position.Config != fingerprint || position.Offset < 1 || position.Offset > 100000 || len(position.Anchor) != sha256.Size*2 {
 			return page, source.Failure("invalid_cursor", "cursor does not match this folder configuration")
 		}
 	}
 	index, more := 0, false
+	matched := position.Offset == 0
+	var lastPath string
 	err = localfiles.Walk(ctx, config.Root, config.MaxDepth, func(path string) error {
 		index++
-		if index <= position.Offset {
+		if index < position.Offset {
+			return nil
+		}
+		if index == position.Offset {
+			matched = pathAnchor(path) == position.Anchor
+			if !matched {
+				return fs.SkipAll
+			}
 			return nil
 		}
 		if len(page.Candidates) == params.Limit {
@@ -90,6 +100,7 @@ func (Provider) Discover(ctx context.Context, params source.DiscoverParams) (sou
 		if err != nil {
 			return err
 		}
+		lastPath = path
 		id := filepath.ToSlash(relative)
 		ref, _ := json.Marshal(struct {
 			Path string `json:"path"`
@@ -103,13 +114,18 @@ func (Provider) Discover(ctx context.Context, params source.DiscoverParams) (sou
 		}
 		return page, source.Failure("unavailable", "could not finish reading the folder")
 	}
-	if position.Offset > index {
+	if !matched {
 		return page, source.Failure("invalid_cursor", "folder changed; restart discovery")
 	}
 	if more {
-		page.NextCursor, _ = json.Marshal(cursor{Config: fingerprint, Offset: position.Offset + len(page.Candidates)})
+		page.NextCursor, _ = json.Marshal(cursor{Config: fingerprint, Offset: position.Offset + len(page.Candidates), Anchor: pathAnchor(lastPath)})
 	}
 	return page, nil
+}
+
+func pathAnchor(path string) string {
+	digest := sha256.Sum256([]byte(path))
+	return hex.EncodeToString(digest[:])
 }
 
 func (Provider) Resolve(ctx context.Context, params source.ResolveParams) (source.Resolved, error) {
