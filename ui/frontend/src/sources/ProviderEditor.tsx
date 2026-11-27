@@ -4,7 +4,7 @@ import { bridge, usePanora } from '../client';
 import { Button, Field, FormActions, Notice, TextInput } from '../components/ui';
 import type { ConfiguredInput, ProviderEditorDescription, ProviderInputEdit } from '../types';
 import type { EditorCallbacks } from './editorCallbacks';
-import { CommonsSearch } from './CommonsSearch';
+import { CommonsSearch } from './CommonsSearchEditor';
 import { commonsApprovals, commonsID, commonsSearchRequest } from './commonsSearch';
 import { ProviderField, ProviderFields } from './ProviderFields';
 import { fieldError, fieldVisible, manifestDefaults, manifestFields } from './providerManifest';
