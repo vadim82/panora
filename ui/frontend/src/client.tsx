@@ -142,15 +142,18 @@ export function createClient() {
         statusReady();
         if (result.connected) {
           let configuration: Configuration | undefined;
+          let invalid = false;
           try {
-            ({ configuration } = await bridge('Configuration'));
+            const result = await bridge('Configuration');
+            configuration = result.configuration;
+            invalid = result.code === 'config_invalid';
           } catch {
             // Treat a failed bridge call and an unavailable configuration alike.
           }
           if (configuration) {
             if (state.configuration) update({ liveConfiguration: configuration });
             else adopt(configuration);
-          } else if (reconnecting || !state.configuration) settingsReadFailed();
+          } else if (invalid || reconnecting || !state.configuration) settingsReadFailed();
           if (reconnecting) accept(result);
         }
         return result;

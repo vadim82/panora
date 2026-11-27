@@ -128,6 +128,39 @@ describe('client request ownership and recovery', () => {
       stop();
     }
   });
+  it('blocks settings after an invalid ordinary poll until reload while playback remains available', async () => {
+    const mock = installBridge(),
+      client = createClient();
+    await client.refresh();
+    const previous = client.getState().configuration;
+    mock.Configuration.mockResolvedValueOnce({
+      code: 'config_invalid',
+      error: 'Invalid settings.',
+    });
+    await client.refresh({ background: true });
+    expect(client.getState()).toMatchObject({
+      connected: true,
+      blocked: true,
+      configuration: previous,
+      liveConfiguration: previous,
+      snapshot: { status: snapshot.status },
+    });
+    expect(client.getState().settingsError).toMatch(/Reload settings/);
+    expect(
+      (
+        await client.request('UpdateConfiguration', [{ revision: 'reviewed', fit: 'crop' }], {
+          mutation: true,
+        })
+      ).code,
+    ).toBe('reload_required');
+    expect(mock.UpdateConfiguration).not.toHaveBeenCalled();
+    await client.action('next');
+    expect(mock.Action).toHaveBeenCalledExactlyOnceWith('next');
+    await client.refresh({ background: true });
+    expect(client.getState().blocked).toBe(true);
+    expect(await client.reload()).toMatchObject({ connected: true });
+    expect(client.getState()).toMatchObject({ blocked: false, settingsError: '' });
+  });
   it('keeps settings writes blocked when status reconnects before settings can be read', async () => {
     const mock = installBridge();
     const client = createClient();
@@ -323,6 +356,7 @@ function ConnectionProbe() {
     <>
       <output>{client.connected ? 'Connected' : 'Disconnected'}</output>
       <button onClick={() => void client.refresh()}>Read connection</button>
+      <button onClick={() => void client.reload()}>Recover settings</button>
       <output data-testid="settings-error">{client.settingsError}</output>
       <output data-testid="accepted-id">{client.snapshot?.status?.current?.id}</output>
     </>
@@ -355,6 +389,15 @@ it('waits for a connected startup read and keeps real image drafts through recon
   const width = screen.getByRole('spinbutton', { name: 'Minimum width (pixels)' });
   await user.clear(width);
   await user.type(width, '2048');
+  mock.Configuration.mockResolvedValueOnce({ code: 'config_invalid', error: 'Invalid settings.' });
+  await user.click(screen.getByRole('button', { name: 'Read connection' }));
+  await waitFor(() =>
+    expect(screen.getByTestId('settings-error')).toHaveTextContent('Reload settings'),
+  );
+  expect(width).toHaveValue(2048);
+  await user.click(screen.getByRole('button', { name: 'Recover settings' }));
+  await waitFor(() => expect(screen.getByTestId('settings-error')).toBeEmptyDOMElement());
+  expect(width).toHaveValue(2048);
   mock.Status.mockResolvedValue({ connected: false, code: 'service_unavailable' });
   await user.click(screen.getByRole('button', { name: 'Read connection' }));
   await waitFor(() => expect(screen.getByText('Disconnected')).toBeVisible());

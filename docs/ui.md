@@ -207,7 +207,9 @@ enable the prefix-sharing option in the editor.
 
 ## Recovery and accessibility
 
-Connection and settings-load problems remain visible across screens.
+Connection and settings-load problems remain visible across screens. An ordinary
+poll can report invalid saved settings; use **Reload settings** after correcting
+them to restore editing while keeping drafts.
 The window keeps labeled last-known details through a disconnect and disables
 actions that need fresh state. A failed save is never replayed automatically.
 Keyboard focus returns to Retry or the active heading after explicit recovery,
