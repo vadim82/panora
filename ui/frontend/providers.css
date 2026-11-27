@@ -690,3 +690,23 @@
   text-overflow: ellipsis;
   padding-inline: 0;
 }
+
+.alpha-results > .ui-button {
+  justify-self: start;
+}
+
+.alpha-tag-list > .ui-button,
+.alpha-results > .ui-button {
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+.alpha-tag-list > .ui-button:hover,
+.alpha-results > .ui-button:hover {
+  background: var(--hover);
+}
+
+.alpha-tag-list > .ui-button {
+  min-height: 30px;
+  padding: 4px 8px;
+}

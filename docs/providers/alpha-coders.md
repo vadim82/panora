@@ -23,9 +23,8 @@ per minute and 500 per day. [Alpha Coders API documentation](https://api.alphaco
 - **Check results** checks up to two pages per tag or search. The combined
   count is distinct across tags and the per-tag counts can overlap. A check
   tells you when only a partial result was available. **Show more previews**
-  shows more of the thumbnails from the checked pages. It does not fetch more
-  pages. The result counts describe metadata and can differ from the images
-  ready to play.
+  reveals more thumbnails from the pages already checked. Counts reflect
+  metadata and can differ from the images ready to play.
 
 Discovery normally refreshes every two hours and reads up to three pages per
 tag or search. It uses the shared discovery scheduler and honors rate limits.

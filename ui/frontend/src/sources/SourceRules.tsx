@@ -362,7 +362,7 @@ export function SourceRules({
       onInvalidCapture={() => setAttempted(true)}
     >
       {!themeRules && <legend>Image rules</legend>}
-      {!themeRules && (
+      {!themeRules && !alphaRules && (
         <FormActions>
           <Button
             variant="secondary"
@@ -595,21 +595,22 @@ export function SourceRules({
           )}
         </>
       )}
-      {enrolled && inputID ? (
-        <Button
-          variant="secondary"
-          pending={working === 'preview'}
-          disabled={locked}
-          onClick={(event) => void inspect(event.currentTarget)}
-        >
-          {working === 'preview' ? 'Checking…' : 'Preview source matches'}
-        </Button>
-      ) : (
-        <p className="subtext">
-          Save and enable this source before checking its known images. Saving does not change your
-          wallpaper.
-        </p>
-      )}
+      {!alphaRules &&
+        (enrolled && inputID ? (
+          <Button
+            variant="secondary"
+            pending={working === 'preview'}
+            disabled={locked}
+            onClick={(event) => void inspect(event.currentTarget)}
+          >
+            {working === 'preview' ? 'Checking…' : 'Preview source matches'}
+          </Button>
+        ) : (
+          <p className="subtext">
+            Save and enable this source before checking its known images. Saving does not change
+            your wallpaper.
+          </p>
+        ))}
       {notice && <Notice>{notice}</Notice>}
       {preview?.reason === 'source_not_enabled_or_enrolled' ? (
         <Notice>Save and enable this source before checking its known images.</Notice>
