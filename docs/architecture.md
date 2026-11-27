@@ -61,6 +61,15 @@ job before starting it. See [startup controls](macos.md#background-service-contr
 [paths and log limits](configuration.md#default-file-locations), and
 [verified scope](status.md#platform-coverage).
 
+Homebrew registrations use the stable `opt/panora/bin/panora` wrapper. The
+wrapper starts the binary in its versioned keg so the service and bundled
+helpers come from the same build. The managed process observes Homebrew's link.
+When it points to a complete replacement keg, the service drains its work and
+replaces itself in the same launchd job. The registration and login preference
+stay in place. A stopped service uses the new keg when it next starts. Opening
+the first supporting Homebrew build can migrate an older managed registration
+from the same formula.
+
 ## Installed Omarchy service lifecycle
 
 The Arch package supplies `/usr/lib/systemd/user/panora.service`. The unit

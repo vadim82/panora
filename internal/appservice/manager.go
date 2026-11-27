@@ -129,9 +129,15 @@ func (m *Manager) Start(ctx context.Context) (State, error) {
 	}
 	defer release()
 	if status, err := m.probe(ctx); err == nil {
-		state := m.Status(ctx)
-		state.InstanceID = status.InstanceID
-		return state, nil
+		migrating, err := m.stopLegacyHomebrew(ctx)
+		if err != nil {
+			return m.Status(ctx), err
+		}
+		if !migrating {
+			state := m.Status(ctx)
+			state.InstanceID = status.InstanceID
+			return state, nil
+		}
 	}
 	// A socket whose owner is still alive must not be replaced after an API error.
 	if _, err := os.Lstat(m.options.Socket); err == nil {
@@ -306,15 +312,21 @@ func (m *Manager) ensureEnabled(ctx context.Context) ([]byte, error) {
 // job uses only the named job's printed source/program to verify ownership.
 // Unknown output is treated as unowned; it never authorizes bootout.
 func (m *Manager) job(ctx context.Context) (bool, bool, error) {
+	loaded, owned, _, err := m.jobProcess(ctx)
+	return loaded, owned, err
+}
+
+func (m *Manager) jobProcess(ctx context.Context) (bool, bool, int, error) {
 	raw, err := m.command(ctx, "print", m.target)
 	if err != nil {
 		var exit interface{ ExitCode() int }
 		if errors.As(err, &exit) && (exit.ExitCode() == 113 || exit.ExitCode() == 3) {
-			return false, false, nil
+			return false, false, 0, nil
 		}
-		return false, false, err
+		return false, false, 0, err
 	}
 	var path, program string
+	var pid int
 	for line := range strings.SplitSeq(string(raw), "\n") {
 		line = strings.TrimSpace(line)
 		if value, ok := strings.CutPrefix(line, "path = "); ok {
@@ -323,18 +335,21 @@ func (m *Manager) job(ctx context.Context) (bool, bool, error) {
 		if value, ok := strings.CutPrefix(line, "program = "); ok {
 			program = value
 		}
+		if value, ok := strings.CutPrefix(line, "pid = "); ok {
+			pid, _ = strconv.Atoi(value)
+		}
 	}
 	switch {
 	case samePath(path, m.registration):
 		path = m.registration
 	default:
-		return true, false, nil
+		return true, false, 0, nil
 	}
 	config, found, err := m.readOwned(path)
 	if err != nil {
-		return true, false, err
+		return true, false, 0, err
 	}
-	return true, found && samePath(config.Arguments[0], program), nil
+	return true, found && samePath(config.Arguments[0], program), pid, nil
 }
 
 func samePath(first, second string) bool {

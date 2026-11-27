@@ -18,10 +18,14 @@ removal](#data-replacement-and-removal) and quit the app. Run
 `brew uninstall --cask panora` and `brew untap vadim82/panora`, then follow
 the new tap commands above.
 
-To check for upgrades, run `brew update` and `brew outdated panora`. Before
-running `brew upgrade panora` or `brew uninstall panora`, use **Prepare to move
-or remove app…** and quit Panora. After upgrading, reopen the app and re-enable
-**Start Panora at login** if you used it.
+Run `brew upgrade panora` to upgrade the public formula. A running managed
+service switches to the new version automatically and keeps your **Start Panora
+at login** setting. If the window was already open, it shows the new version the
+next time you open it.
+
+When upgrading from Panora 0.8.1 or earlier, quit the window if it was open and
+open the new app once after upgrading. This updates its background service
+registration and preserves the login setting.
 
 ## Download an Apple silicon build
 

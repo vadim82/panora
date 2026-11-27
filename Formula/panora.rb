@@ -37,9 +37,8 @@ class Panora < Formula
       Open the native app with:
         open "#{opt_libexec}/Panora.app"
 
-      Before upgrading or uninstalling Panora, use Prepare to move or remove app
+      Before uninstalling Panora, use Prepare to move or remove app
       in Settings → Startup → Background service, then quit the window.
-      Open Panora again after upgrading and re-enable Start Panora at login if desired.
     EOS
   end
 

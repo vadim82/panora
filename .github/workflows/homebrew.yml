@@ -35,6 +35,76 @@ jobs:
           brew install --build-from-source panora
           brew test panora
           python3 tools/check_macos_bundle.py "$(brew --prefix panora)/libexec/Panora.app"
+      - name: Verify the managed service across a Homebrew upgrade
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(/bin/launchctl managername)" == Aqua ]]
+          formula="$(brew --repository vadim82/panora)/Formula/panora.rb"
+          registration="$HOME/Library/LaunchAgents/org.panora.service.plist"
+          launcher="$(brew --prefix panora)/bin/panora"
+          revision="$(git rev-parse HEAD)"
+
+          upgrade_candidate() {
+            local tag="$1"
+            git tag "$tag" "$revision"
+            python3 - "$formula" "$GITHUB_WORKSPACE" "$tag" "$revision" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          formula, checkout, tag, revision = sys.argv[1:]
+          path = Path(formula)
+          source = f'url "file://{checkout}/.git",\n      using:    :git,\n      tag:      "{tag}",\n      revision: "{revision}"'
+          text, count = re.subn(r'url ".+?",\n(?:\s+using:.*\n)?\s+tag:.*?\n\s+revision:.*?(?=\n)', source, path.read_text(), count=1)
+          if count != 1:
+              sys.exit("could not set the candidate formula source")
+          path.write_text(text)
+          PY
+            brew upgrade panora
+          }
+
+          wait_for_service() {
+            local previous="${1:-}"
+            local instance
+            for _ in {1..30}; do
+              if instance="$(panora status --json 2>/dev/null | jq -er '.instance_id | strings | select(length > 0)')" &&
+                 [[ "$instance" != "$previous" ]]; then
+                printf '%s\n' "$instance"
+                return
+              fi
+              sleep 1
+            done
+            tail -n 30 "$HOME/Library/Logs/Panora/service.log" >&2 || true
+            return 1
+          }
+
+          upgrade_candidate v9998.0.0
+          open -g -a "$(brew --prefix panora)/libexec/Panora.app"
+          old_instance="$(wait_for_service)"
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print ProgramArguments:0' "$registration")" == "$launcher" ]]
+          pid="$(launchctl list | awk '$3 == "org.panora.service" { print $1 }')"
+          [[ "$pid" =~ ^[0-9]+$ ]]
+
+          # The login preference is independent of whether this job is running.
+          python3 - "$registration" <<'PY'
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          old = b"<key>RunAtLoad</key><false/>"
+          raw = path.read_bytes()
+          assert raw.count(old) == 1
+          path.write_bytes(raw.replace(old, b"<key>RunAtLoad</key><true/>"))
+          PY
+          cp "$registration" "$RUNNER_TEMP/panora-upgrade-registration.plist"
+
+          upgrade_candidate v9999.0.0
+          brew test panora
+          wait_for_service "$old_instance"
+          [[ "$(launchctl list | awk '$3 == "org.panora.service" { print $1 }')" == "$pid" ]]
+          ps -ww -p "$pid" -o comm= | grep -Fx "$(brew --cellar panora)/9999.0.0/libexec/Panora.app/Contents/MacOS/panora"
+          cmp "$registration" "$RUNNER_TEMP/panora-upgrade-registration.plist"
 
   archive:
     runs-on: macos-latest

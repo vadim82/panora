@@ -108,6 +108,11 @@ func newServeCommand(resolve func(context.Context) (desktop.WallpaperBackend, er
 				if pauseForSetup || path == defaultSocket {
 					hooks.RunCompanion = installedMacOSMenu(path, cmd.ErrOrStderr())
 				}
+				if pauseForSetup {
+					watchCtx, cancel := context.WithCancel(ctx)
+					defer cancel()
+					hooks.PackageReplacement = appservice.WatchHomebrewUpgrade(watchCtx, path)
+				}
 			}
 			if omarchySession {
 				barDone := make(chan struct{})
@@ -141,7 +146,15 @@ func newServeCommand(resolve func(context.Context) (desktop.WallpaperBackend, er
 				Backend:             config.Desktop.Backend,
 				FreshOmarchyProfile: omarchySession && created,
 			}
-			return service.Run(ctx, options, resolver, path, cmd.OutOrStdout(), cmd.ErrOrStderr(), hooks)
+			err = service.Run(ctx, options, resolver, path, cmd.OutOrStdout(), cmd.ErrOrStderr(), hooks)
+			var replacement *service.PackageReplacement
+			if errors.As(err, &replacement) && ctx.Err() == nil {
+				fmt.Fprintln(cmd.ErrOrStderr(), "Homebrew linked a new Panora release. Restarting the managed service.")
+				if err := appservice.ExecHomebrewService(replacement.Executable); err != nil {
+					return fmt.Errorf("start the linked Homebrew service: %w", err)
+				}
+			}
+			return err
 		},
 	}
 	addPlaybackFlags(cmd, &request)

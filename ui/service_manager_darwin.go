@@ -26,7 +26,8 @@ func managedService(socket string, explicitSocket bool) (serviceManager, error) 
 	if err != nil {
 		return nil, err
 	}
-	manager, err := appservice.New(appservice.Options{Executable: filepath.Join(directory, "panora"), Home: home, Socket: socket})
+	service := appservice.HomebrewLaunchPath(filepath.Join(directory, "panora"))
+	manager, err := appservice.New(appservice.Options{Executable: service, Home: home, Socket: socket})
 	if err != nil {
 		return nil, err
 	}

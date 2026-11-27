@@ -57,7 +57,11 @@ func newFixture(t *testing.T) (*Manager, *sessionFixture) {
 			if !fixture.loaded {
 				return nil, missingJob{}
 			}
-			return fmt.Appendf(nil, "path = %s\nprogram = %s\n", fixture.source, fixture.program), nil
+			output := fmt.Appendf(nil, "path = %s\nprogram = %s\n", fixture.source, fixture.program)
+			if fixture.running {
+				output = append(output, "pid = 1234\n"...)
+			}
+			return output, nil
 		case "print-disabled":
 			return fmt.Appendf(nil, `disabled services = { "%s" => %t }`, manager.options.Label, fixture.disabled), nil
 		case "enable":

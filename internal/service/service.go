@@ -21,7 +21,15 @@ type Hooks struct {
 	Ready func(context.Context) error
 	// RunCompanion runs with the ready service and is joined during shutdown.
 	RunCompanion func(context.Context, string)
+	// PackageReplacement reports a linked replacement for the managed service.
+	PackageReplacement <-chan string
 }
+
+// PackageReplacement tells the caller it can exec the replacement after Run
+// has released the listener and playback state.
+type PackageReplacement struct{ Executable string }
+
+func (*PackageReplacement) Error() string { return "Panora package was replaced" }
 
 // Run wires the domain service to its HTTP adapter. Playback owns state/scheduling;
 // control owns the private socket. Neither package depends on Cobra.
@@ -86,9 +94,11 @@ func Run(ctx context.Context, options playback.ServiceOptions, resolve playback.
 		}
 	}()
 	var result error
+	var replacement string
 	select {
 	case <-ctx.Done():
 	case <-requested:
+	case replacement = <-hooks.PackageReplacement:
 	case result = <-service.Errors():
 	case result = <-serverDone:
 		if errors.Is(result, http.ErrServerClosed) {
@@ -106,6 +116,14 @@ func Run(ctx context.Context, options playback.ServiceOptions, resolve playback.
 		server.Close()
 		if result == nil {
 			result = err
+		}
+	}
+	if result == nil && replacement != "" && ctx.Err() == nil {
+		select {
+		case <-requested:
+			// A Stop acknowledged during shutdown takes priority over the upgrade.
+		default:
+			return &PackageReplacement{Executable: replacement}
 		}
 	}
 	return result
