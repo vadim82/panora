@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "author": "vadim82",
   "license": "MIT",
-  "description": "Preview the current wallpaper and control Panora rotation from the Omarchy bar",
+  "description": "Rotate wallpapers from local folders, Wallhaven searches, and the active Omarchy theme. Set shared or per-source image rules, then preview, pause, or skip from the bar.",
   "kinds": ["bar-widget"],
   "entryPoints": {"barWidget": "BarWidget.qml"},
   "barWidget": {
