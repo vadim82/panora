@@ -310,6 +310,16 @@
   background: currentColor;
   transform: rotate(45deg);
 }
+.source-kind-mark[data-kind='external']::before {
+  inset: 7px 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+}
+.source-kind-mark[data-kind='external']::after {
+  inset: 12px 9px 10px;
+  background: currentColor;
+  clip-path: polygon(0 100%, 36% 20%, 58% 63%, 76% 38%, 100% 100%);
+}
 .source-pause-mark {
   position: absolute;
   inset-inline-end: -5px;
@@ -630,6 +640,32 @@
   margin: 0;
 }
 
+.alpha-source-editor form > fieldset,
+.alpha-source-editor fieldset.source-rules {
+  display: grid;
+  gap: 12px;
+}
+
+.alpha-source-editor fieldset.source-rules {
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.alpha-source-editor .source-rules > legend {
+  padding-inline: 4px;
+  font-weight: 600;
+}
+
+.alpha-source-editor .search-check {
+  margin: 0;
+}
+
+.alpha-options-toggle.ui-button {
+  justify-self: start;
+  border-color: var(--line);
+}
+
 .alpha-connection,
 .alpha-tag-option {
   display: flex;
@@ -662,6 +698,19 @@
 
 .alpha-result-counts li {
   color: var(--muted);
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.alpha-results {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.alpha-results > p,
+.alpha-sample-list p {
+  margin: 0;
 }
 
 .alpha-sample-list {
@@ -682,8 +731,9 @@
   border-radius: 6px;
 }
 
-.alpha-sample-list button {
+.alpha-sample-list button.ui-button {
   max-width: 100%;
+  min-height: 30px;
   display: block;
   overflow: hidden;
   white-space: nowrap;

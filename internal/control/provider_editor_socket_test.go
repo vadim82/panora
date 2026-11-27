@@ -7,12 +7,34 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vadim82/panora/internal/playback"
 	"github.com/vadim82/panora/internal/source"
 )
 
 type suggestFixture struct {
 	testService
 	providerInputService
+}
+
+type alphaEditorFixture struct{ testService }
+
+func (*alphaEditorFixture) AlphaCoders(_ context.Context, query playback.AlphaRequest) (playback.AlphaResult, error) {
+	if query.Action != "tags" || query.Prefix != "ne" {
+		return playback.AlphaResult{}, &Error{Code: "invalid_request", Message: "unexpected Alpha Coders request"}
+	}
+	return playback.AlphaResult{
+		Connected: true,
+		Tags:      []source.AlphaTag{{ID: 17, Name: "Nebula", Total: 42}},
+	}, nil
+}
+
+func TestAlphaCodersPrivateSocketRoundTrip(t *testing.T) {
+	path := socketPath(t)
+	serveFixture(t, path, Handler(&alphaEditorFixture{}))
+	got, err := AlphaCoders(t.Context(), path, playback.AlphaRequest{Action: "tags", Prefix: "ne"})
+	if err != nil || !got.Connected || !slices.Equal(got.Tags, []source.AlphaTag{{ID: 17, Name: "Nebula", Total: 42}}) {
+		t.Fatalf("Alpha Coders tags=%+v err=%v", got, err)
+	}
 }
 
 func (s *suggestFixture) SuggestProviderInput(_ context.Context, id string, query source.SuggestParams) ([]string, error) {

@@ -590,7 +590,8 @@ Use the same private socket as the service when you override the default path.
 
 ## Alpha Coders editor
 
-`POST /v1/providers/alpha-coders` takes one JSON object with an `action`.
+`POST /v1/providers/alpha-coders` takes one JSON object with an `action` and
+returns a version-1 JSON response.
 Use the existing [provider input routes](#installed-provider-editor-routes)
 to save an input. The private socket is the only editor entry point.
 
