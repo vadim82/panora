@@ -190,7 +190,7 @@ export function ImageSettingsProvider({ children }: PropsWithChildren) {
     if (capabilityRead.current) return capabilityRead.current;
     const epoch = capabilityEpoch.current,
       scope = scopeRef.current;
-    const pending = request('Capabilities')
+    const pending = request('Capabilities', [], { passive: true })
       .then((result) => {
         if (epoch !== capabilityEpoch.current || scope !== scopeRef.current) return null;
         if (result.code === 'busy') {
@@ -210,11 +210,24 @@ export function ImageSettingsProvider({ children }: PropsWithChildren) {
     return pending;
   }, [request]);
   useEffect(() => {
-    if (client.connected && client.configuration && !client.busy && !automaticallyChecked.current) {
+    if (
+      (client.page === 'settings' || client.page === 'providers') &&
+      client.connected &&
+      client.configuration &&
+      !client.busy &&
+      !automaticallyChecked.current
+    ) {
       automaticallyChecked.current = true;
       void readCapabilities();
     }
-  }, [client.connected, client.configuration, client.busy, capabilityScope, readCapabilities]);
+  }, [
+    client.page,
+    client.connected,
+    client.configuration,
+    client.busy,
+    capabilityScope,
+    readCapabilities,
+  ]);
   const clearPreview = () => {
     previewToken.current++;
     setPreview(null);

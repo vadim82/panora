@@ -112,7 +112,9 @@ validates saved settings. Reload refreshes untouched fields and retains edits.
 If a folder or search was removed, the editor offers to save the draft as a
 new input. `ImageSettingsProvider` carries image settings drafts across pages.
 Scope storage readings to the connection and service instance, and scope
-capabilities to the active backend too. Async completion should preserve focus
+capabilities to the active backend too. Read capabilities only on Settings or Sources,
+storage diagnostics only when Storage usage is open on Settings, and poll installed-service
+state only while Settings is visible. These passive reads do not occupy the foreground command gate. Async completion should preserve focus
 when the user moved it elsewhere.
 
 In Source status, Wallhaven catalog counts are read when the disclosure opens,

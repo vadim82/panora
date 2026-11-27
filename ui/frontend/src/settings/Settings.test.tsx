@@ -46,8 +46,14 @@ function savedSettings(mock: BridgeMock, initial: Configuration = structuredClon
   });
   return source;
 }
+function ServiceHarnessRotation() {
+  const client = usePanora();
+  useState(() => client.navigate('settings'));
+  return <RotationSettings />;
+}
 function ImageHarness() {
   const client = usePanora();
+  useState(() => client.navigate('settings'));
   const [mount, setMount] = useState(0);
   return (
     <>
@@ -635,7 +641,7 @@ describe('rotation and storage settings', () => {
     mock.CacheStatus.mockResolvedValue({ cache });
     render(
       <ClientProvider>
-        <RotationSettings />
+        <ServiceHarnessRotation />
       </ClientProvider>,
     );
     await user.click(screen.getByText('Storage usage'));

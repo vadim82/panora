@@ -350,3 +350,39 @@ test('keyboard reconnect keeps its retry focus on failure and reaches the page h
   expect(api.Action).not.toHaveBeenCalled();
   expect(api.UpdateConfiguration).not.toHaveBeenCalled();
 });
+
+test('hidden settings do not poll and passive reads leave playback available', async () => {
+  const api = installBridge(),
+    user = userEvent.setup();
+  let finish: (result: Awaited<ReturnType<typeof api.Capabilities>>) => void = () => {};
+  const running = structuredClone(snapshot);
+  running.status!.paused = false;
+  api.Status.mockResolvedValue(running);
+  api.Capabilities.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render(
+    <ClientProvider>
+      <ImageSettingsProvider>
+        <App />
+      </ImageSettingsProvider>
+    </ClientProvider>,
+  );
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Next wallpaper' })).toBeEnabled());
+  expect(api.ServiceState).not.toHaveBeenCalled();
+  expect(api.CacheStatus).not.toHaveBeenCalled();
+  expect(api.Capabilities).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Settings' }));
+  await waitFor(() => expect(api.Capabilities).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(api.ServiceState).toHaveBeenCalled());
+  expect(api.CacheStatus).not.toHaveBeenCalled();
+  await user.click(screen.getByText('Storage usage'));
+  await waitFor(() => expect(api.CacheStatus).toHaveBeenCalled());
+  await user.click(screen.getByRole('button', { name: 'Now' }));
+  expect(screen.getByRole('button', { name: 'Next wallpaper' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Pause rotation' })).toBeEnabled();
+  await act(async () => finish({}));
+});
