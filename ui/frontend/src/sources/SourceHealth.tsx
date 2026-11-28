@@ -359,7 +359,7 @@ export function SourceHealth({
                       : 'No successful check reported yet.'}
                   </p>
                   {input.next_refresh && input.state !== 'disabled' && provider.enabled && (
-                    <p className="source-time">Next check at {clock(input.next_refresh)}</p>
+                    <p className="source-time">Eligible to check at {clock(input.next_refresh)}</p>
                   )}
                   {input.failure && (
                     <p className="source-failure">{failureText(input.failure, provider.id)}</p>

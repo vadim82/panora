@@ -66,7 +66,6 @@ max_depth = 2  # Files directly in each folder are depth 0.
 [[providers]]
 id = "local"
 enabled = true
-refresh_interval = "5m" # Default for folders; independent of playback.interval.
 
 [[providers.folders]]
 id = "home"
@@ -78,7 +77,6 @@ path = "/home/alex/Wallpapers"
 name = "Work wallpapers" # Optional; otherwise use the basename.
 enabled = true         # Optional; defaults to true.
 max_depth = 0          # Optional; otherwise inherit filters.max_depth.
-refresh_interval = "15m" # Optional per-input override.
 ```
 
 Removing a folder preserves its files and history; navigation skips images from
@@ -101,8 +99,6 @@ config is limited to 1 MiB and must declare version 1.
 | `omarchy_theme.enabled` | `false` | Include the active Omarchy theme's stills in rotation |
 | `omarchy_theme.image_rules` | Inherit | Optional resolution and ratio override for this source |
 | `providers[].id` | Required | `local`, `wallhaven`, or an installed provider ID; unique in the file |
-| `providers[].refresh_interval` | `"5m"` | Discovery duration of at least `1s`; empty inherits the default |
-| Folder/search `refresh_interval` | Provider interval | Optional discovery duration of at least `1s`; empty inherits the provider interval |
 | `providers[].enabled` | `false` | Enable discovery and playback for this provider |
 | `providers[].folders` | Empty | Local folder tables with an `id` and absolute `path`; no searches accepted |
 | `providers[].searches` | Empty | Wallhaven search tables with an `id` and optional `query`; no folders accepted |
@@ -172,15 +168,17 @@ Wallhaven is restricted to SFW searches.
 
 ### Refresh schedules
 
-Discovery continues while paused. Providers refresh every five minutes by
-default. A folder or search can override that schedule with `refresh_interval`.
-Use Go duration syntax (`30s`, `15m`, `2h`) with a one-second minimum.
-Schedule edits take effect on the next settings check and count from the last
-completed refresh. On restart, enabled inputs are due immediately unless a
-saved retry gate applies. A query, folder path or scan depth edit affects that
-input's discovery revision. Image rule changes affect the inputs that use those
-rules. Unchanged inputs keep their catalog and retry state. See
-[background discovery](architecture.md#background-discovery).
+The wallpaper interval is the only configurable schedule. Panora discovers
+images on startup and when enabling or changing a source. After that, a
+scheduled change or **Next** can request discovery for the chosen source when
+its candidate pool runs low. Local folders are checked on playback demand so
+added and removed files can be discovered. Discovery runs in the background
+and honors provider backoff. Idle paused playback starts no recurring checks.
+
+Existing provider, folder, and search `refresh_interval` values are retained for
+compatibility. The playback interval controls discovery throttling instead.
+Changes to a query, folder path, scan depth, or effective image rules still
+give the input its own discovery revision. [Background discovery](architecture.md#background-discovery).
 
 ### Configuration selection
 
@@ -394,7 +392,7 @@ For foreground commands and flags, see the [CLI reference](cli.md#foreground-ser
 | Setting | Where you set it | What happens after restart |
 | --- | --- | --- |
 | Folder and image rules | `config.toml` | Reloaded at startup and for each image-selection or history-navigation request |
-| Provider/input refresh intervals | TOML `refresh_interval` | Reloaded every second; enabled inputs refresh immediately after restart unless retry limits apply. |
+| Legacy discovery interval | TOML `refresh_interval` | Preserved for compatibility. Playback uses the wallpaper interval and discovery runs on demand. |
 | Rotation interval | TOML/API `playback.interval`, optional `serve --interval 30m` | Saved duration applies at startup unless a CLI override is supplied; an explicit API interval edit supersedes the running override. See [rotation timing](#rotation-timing). |
 | Exclusions | `exclusions add`, `exclusions ls`, `exclusions remove ID` | Saved in SQLite independently of history; original files remain untouched. |
 | Pause | `pause` / `resume`, or `serve --paused` | Saved in state. `--paused` forces pause; omitting it does not clear a saved pause. Use Resume to clear it. |

@@ -3,6 +3,7 @@ package playback
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,7 +77,7 @@ func TestLookaheadUsesTwoWarmedChoicesAcrossDelayedNext(t *testing.T) {
 	awaitLookahead(t, s, func(Status) bool {
 		s.actionMu.Lock()
 		defer s.actionMu.Unlock()
-		if len(s.lookahead.choices) < lookaheadSlots {
+		if len(s.lookahead.choices) < 2 {
 			return false
 		}
 		secondID = s.lookahead.choices[1].identity.ImageID
@@ -119,6 +120,44 @@ func TestLookaheadUsesTwoWarmedChoicesAcrossDelayedNext(t *testing.T) {
 		}
 		if i == 0 && accepted.PreparedNextImageID != secondID {
 			t.Fatalf("warmed second slot was not promoted: %+v", accepted)
+		}
+	}
+}
+
+func TestLookaheadKeepsTenDistinctChoicesAndWarmsOnlyFive(t *testing.T) {
+	s, root := testService(t, &fakeWallpaperBackend{})
+	for i := range 12 {
+		writeScanImage(t, filepath.Join(root, fmt.Sprintf("future-%d.png", i)), 3+i, 2)
+	}
+	first := act(t, s, "next")
+	s.StartLookahead()
+	var ready []playbackChoice
+	awaitLookahead(t, s, func(Status) bool {
+		s.actionMu.Lock()
+		defer s.actionMu.Unlock()
+		if len(s.lookahead.choices)+len(s.lookahead.planned) != 10 {
+			return false
+		}
+		seen := map[int64]bool{first.Current.ImageID: true}
+		for i, choice := range append(append([]playbackChoice{}, s.lookahead.choices...), s.lookahead.planned...) {
+			if seen[choice.identity.ImageID] || (choice.path != "") != (i < 5) {
+				t.Fatalf("duplicate or incorrectly cached choice at slot %d: %+v", i, choice)
+			}
+			seen[choice.identity.ImageID] = true
+		}
+		ready = append(ready, s.lookahead.choices...)
+		return true
+	})
+	for i, choice := range ready {
+		var status Status
+		var err error
+		awaitCondition(t, func() bool {
+			status, err = s.Action(t.Context(), "next")
+			var failure *Error
+			return !errors.As(err, &failure) || failure.Code != "busy"
+		})
+		if err != nil || status.Current == nil || status.Current.ImageID != choice.identity.ImageID || !status.Paused {
+			t.Fatalf("Next did not consume warmed slot %d: %+v %v", i, status, err)
 		}
 	}
 }

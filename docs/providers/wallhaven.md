@@ -31,7 +31,7 @@ when no filters are selected. A blank `name` displays the search terms, or
 **Wallhaven** if the terms are blank. `enabled` defaults to true.
 The service API generates IDs independently of labels. The settings below apply
 to saved searches and direct provider calls; `revision` is host-generated.
-`refresh_interval` controls scheduling independently of playback.
+Discovery reads more results on playback demand and honors provider backoff.
 
 The [search API](../socket-api.md#wallhaven-search-routes) adds, edits, enables, disables
 and removes searches while the service runs. Saving validates syntax offline,

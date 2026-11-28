@@ -52,6 +52,7 @@ func TestSourceFailureLogRecordsRetryWithoutProviderText(t *testing.T) {
 func TestDiscoveryRetryRecoveryResetsBackoff(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s, root := testService(t, &fakeWallpaperBackend{})
+		s.interval = time.Second
 		if err := os.WriteFile(s.request.ConfigPath, []byte(localTOML(root)+"refresh_interval='1s'"), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -70,6 +71,7 @@ func TestDiscoveryRetryRecoveryResetsBackoff(t *testing.T) {
 			t.Fatal("retry before 5s")
 		}
 		time.Sleep(time.Second)
+		_, _ = s.Action(t.Context(), "next")
 		synctest.Wait()
 		if calls.Load() != 2 {
 			t.Fatal("first backoff not applied")
@@ -80,6 +82,7 @@ func TestDiscoveryRetryRecoveryResetsBackoff(t *testing.T) {
 			t.Fatal("second retry before 10s")
 		}
 		time.Sleep(time.Second)
+		_, _ = s.Action(t.Context(), "next")
 		synctest.Wait()
 		if calls.Load() != 3 || s.Status().Providers[0].Inputs[0].State != "empty" {
 			t.Fatal("empty success did not recover")
@@ -87,7 +90,8 @@ func TestDiscoveryRetryRecoveryResetsBackoff(t *testing.T) {
 		if states, err := s.store.LoadRetries(t.Context()); err != nil || len(states) != 0 {
 			t.Fatalf("successful attempt did not reset retries: %+v %v", states, err)
 		}
-		time.Sleep(time.Second)
+		time.Sleep(s.interval)
+		_, _ = s.Action(t.Context(), "next")
 		synctest.Wait()
 		retry := s.Status().Providers[0].Inputs[0].Retries[0]
 		if calls.Load() != 4 || retry.Attempts != 1 || retry.NextRetry.Sub(time.Now()) != 5*time.Second {

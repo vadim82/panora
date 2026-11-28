@@ -296,7 +296,7 @@ func (s *Service) editConfiguration(ctx context.Context, revision string, edit f
 		return Configuration{}, &Error{Code: "config_write_failed", Message: err.Error()}
 	}
 	s.stopLookaheadWork()
-	s.finishLookahead(false, false)
+	s.finishLookahead(0)
 	s.publishStatus()
 	s.wakeLookahead()
 	apply()

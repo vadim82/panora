@@ -184,15 +184,16 @@ func (s *Service) refreshCandidates(ctx context.Context, config Config) []string
 	return warnings
 }
 
-func TestRefreshSchedulesWithControlledTime(t *testing.T) {
+func TestDiscoveryRunsOnlyOnDemandAfterStartup(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s, root := testService(t, &fakeWallpaperBackend{})
-		body := localTOML(root) + "refresh_interval='10s'\n"
+		s.interval = 10 * time.Second
+		body := localTOML(root) + "refresh_interval='1s'\n"
 		if err := os.WriteFile(s.request.ConfigPath, []byte(body), 0600); err != nil {
 			t.Fatal(err)
 		}
 		var calls atomic.Int32
-		s.request.Source = changedProvider{listing: func(ctx context.Context, p source.DiscoverParams) (source.Page, error) {
+		s.request.Source = changedProvider{listing: func(context.Context, source.DiscoverParams) (source.Page, error) {
 			calls.Add(1)
 			return source.Page{Candidates: []source.Candidate{}, NextCursor: json.RawMessage("null")}, nil
 		}}
@@ -201,33 +202,61 @@ func TestRefreshSchedulesWithControlledTime(t *testing.T) {
 		if calls.Load() != 1 || !s.Status().Paused {
 			t.Fatalf("startup while paused: calls=%d", calls.Load())
 		}
-		time.Sleep(9 * time.Second)
+		time.Sleep(20 * time.Second)
 		synctest.Wait()
 		if calls.Load() != 1 {
-			t.Fatal("early refresh")
+			t.Fatal("legacy interval triggered discovery while idle")
 		}
-		time.Sleep(time.Second)
+		_, _ = s.Action(t.Context(), "next")
 		synctest.Wait()
 		if calls.Load() != 2 {
-			t.Fatalf("scheduled calls=%d", calls.Load())
+			t.Fatalf("manual Next did not request discovery: %d", calls.Load())
 		}
-		// Shorten the input schedule without changing its discovery revision.
-		body = strings.Replace(body, "refresh_interval='10s'", "refresh_interval='2s'", 1)
+		for range 4 {
+			_, _ = s.Action(t.Context(), "next")
+		}
+		synctest.Wait()
+		if calls.Load() != 2 {
+			t.Fatalf("rapid Next requests repeated discovery: %d", calls.Load())
+		}
+		s.Close()
+	})
+}
+
+func TestScheduledPlaybackRequestsDiscoveryOnlyForItsSource(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s, root := testService(t, &fakeWallpaperBackend{})
+		s.interval = 10 * time.Second
+		body := localTOML(root) + "[[providers]]\nid='wallhaven'\nenabled=true\n[[providers.searches]]\nid='remote'\nquery='nature'\n"
 		if err := os.WriteFile(s.request.ConfigPath, []byte(body), 0600); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(2 * time.Second)
+		var localCalls, remoteCalls atomic.Int32
+		s.request.Source = changedProvider{listing: func(ctx context.Context, p source.DiscoverParams) (source.Page, error) {
+			localCalls.Add(1)
+			return (local.Provider{}).Discover(ctx, p)
+		}}
+		s.request.Providers = map[string]source.Provider{"wallhaven": metadataProvider{changedProvider{listing: func(context.Context, source.DiscoverParams) (source.Page, error) {
+			remoteCalls.Add(1)
+			return source.Page{Candidates: []source.Candidate{}, NextCursor: json.RawMessage("null")}, nil
+		}}}}
+		s.StartDiscovery()
 		synctest.Wait()
-		if calls.Load() != 3 {
-			t.Fatalf("reconciled calls=%d", calls.Load())
+		if localCalls.Load() != 1 || remoteCalls.Load() != 1 {
+			t.Fatal("startup did not check both sources")
+		}
+		if _, err := s.Action(t.Context(), "resume"); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan struct{})
+		go func() { defer close(done); s.Run(nil) }()
+		time.Sleep(s.interval)
+		synctest.Wait()
+		if localCalls.Load() != 2 || remoteCalls.Load() != 1 || s.Status().HistoryLength != 1 {
+			t.Fatalf("scheduled change queried unselected inputs or was missed: local=%d remote=%d history=%d", localCalls.Load(), remoteCalls.Load(), s.Status().HistoryLength)
 		}
 		s.Close()
-		restarted := openTestService(t, s.request, s.resolve, time.Hour, true)
-		restarted.StartDiscovery()
-		synctest.Wait()
-		if calls.Load() != 4 {
-			t.Fatalf("restart did not refresh immediately: %d", calls.Load())
-		}
+		<-done
 	})
 }
 
@@ -240,10 +269,9 @@ func TestReconcileDiscoveryCoalescesDeadlinesAndCancelsObsoleteJobs(t *testing.T
 	jobs := map[string]*discoverySchedule{}
 	reconcileDiscovery(jobs, config, now)
 	first := jobs["local/home"]
-	first.completed = now
-	first.next = now.Add(first.input.interval)
+	first.next = time.Time{}
 	reconcileDiscovery(jobs, config, now.Add(24*time.Hour))
-	if len(jobs) != 1 || jobs["local/home"] != first || !first.next.Equal(now.Add(5*time.Minute)) {
+	if len(jobs) != 1 || jobs["local/home"] != first || !first.next.IsZero() {
 		t.Fatal("missed intervals created extra jobs or reset deadline")
 	}
 	ctx, cancel := context.WithCancel(t.Context())

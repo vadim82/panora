@@ -90,7 +90,6 @@ func filterPools(pools []providerPool, keep func(catalog.Candidate) bool) []prov
 type providerInput struct {
 	id, scope, revision string
 	config              json.RawMessage
-	interval            time.Duration
 	disabled            bool
 	inherited           bool
 	rules               *SourceImageRules
@@ -110,7 +109,7 @@ func providerInputs(p ProviderConfig, maxDepth int, defaults SourceImageRules) [
 		revision := inputDiscoveryRevision(p.ID, folder.ID, settings, effective)
 		settings.Revision = revision
 		raw, _ := json.Marshal(settings)
-		inputs = append(inputs, providerInput{inherited: folder.ImageRules == nil, rules: effective, id: folder.ID, scope: localImageScope(folder), revision: revision, config: raw, interval: refreshInterval(p.RefreshInterval, folder.RefreshInterval), disabled: !folder.enabled()})
+		inputs = append(inputs, providerInput{inherited: folder.ImageRules == nil, rules: effective, id: folder.ID, scope: localImageScope(folder), revision: revision, config: raw, disabled: !folder.enabled()})
 	}
 	for _, search := range p.Searches {
 		settings := search.settings("")
@@ -118,17 +117,13 @@ func providerInputs(p ProviderConfig, maxDepth int, defaults SourceImageRules) [
 		revision := inputDiscoveryRevision(p.ID, search.ID, settings, effective)
 		settings.Revision = revision
 		raw, _ := json.Marshal(settings)
-		inputs = append(inputs, providerInput{inherited: search.ImageRules == nil, rules: effective, id: search.ID, revision: revision, config: raw, interval: refreshInterval(p.RefreshInterval, search.RefreshInterval), disabled: !search.enabled()})
-	}
-	externalInterval := p.RefreshInterval
-	if p.ID == source.AlphaCodersID && externalInterval == "" {
-		externalInterval = "2h"
+		inputs = append(inputs, providerInput{inherited: search.ImageRules == nil, rules: effective, id: search.ID, revision: revision, config: raw, disabled: !search.enabled()})
 	}
 	for _, input := range p.Inputs {
 		settings := json.RawMessage(input.Values)
 		effective := rules(input.ImageRules)
 		revision := inputDiscoveryRevision(p.ID, input.ID, settings, effective)
-		inputs = append(inputs, providerInput{inherited: input.ImageRules == nil, rules: effective, id: input.ID, revision: revision, config: settings, interval: refreshInterval(externalInterval, ""), disabled: !input.enabled()})
+		inputs = append(inputs, providerInput{inherited: input.ImageRules == nil, rules: effective, id: input.ID, revision: revision, config: settings, disabled: !input.enabled()})
 	}
 	return inputs
 }
@@ -307,6 +302,27 @@ func (s *Service) selectAlternative(ctx context.Context, config Config, warn fun
 	if len(pools) == 0 && s.Status().Refreshing {
 		return playbackChoice{}, &Error{Code: "discovery_pending", Message: "checking configured inputs; no matching images are ready yet"}
 	}
+	if len(pools) == 0 && !selection.speculative {
+		var inputs [][]catalog.Identity
+		for _, p := range config.Providers {
+			if !p.Enabled || source.ValidInputProviderID(p.ID) && !s.request.inputProviderAvailable(p.ID) {
+				continue
+			}
+			var choices []catalog.Identity
+			for _, input := range providerInputs(p, config.Filters.MaxDepth, sourceDefaultRules(config)) {
+				if !input.disabled {
+					choices = append(choices, catalog.Identity{ProviderID: p.ID, InputID: input.id, Revision: input.revision})
+				}
+			}
+			if len(choices) > 0 {
+				inputs = append(inputs, choices)
+			}
+		}
+		if len(inputs) > 0 {
+			chosen := inputs[draw(len(inputs))]
+			s.requestDiscovery(chosen[draw(len(chosen))], 0)
+		}
+	}
 	currentID, currentHash := current.identity.ImageID, current.hash
 	extraID, extraHash := extra.identity.ImageID, extra.hash
 	if extraID > 0 {
@@ -318,8 +334,9 @@ func (s *Service) selectAlternative(ctx context.Context, config Config, warn fun
 		return c.Identity.ImageID == currentID || currentHash != "" && c.Hash == currentHash
 	})
 	pools = filterPools(pools, func(c catalog.Candidate) bool {
-		return c.Identity.ImageID != currentID && (currentHash == "" || c.Hash != currentHash)
+		return c.Identity.ImageID != currentID && (currentHash == "" || c.Hash != currentHash) && !queuedCandidate(c, selection.queued)
 	})
+	counts := candidateCounts(pools)
 	drawNext, drawRepeat := freshDraws(config.Playback.RotationMode, pools, repeats, draw)
 	var repeat *playbackChoice
 	hadFailure := false
@@ -341,7 +358,8 @@ func (s *Service) selectAlternative(ctx context.Context, config Config, warn fun
 			}
 		}
 		attemptCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-		choice, err := s.materializeSelection(attemptCtx, playbackChoice{identity: candidate.Identity, sourceID: candidate.Identity.InputID, historyIndex: -1}, config, selection)
+		identity := candidate.Identity
+		choice, err := s.materializeSelection(attemptCtx, playbackChoice{identity: identity, sourceID: identity.InputID, historyIndex: -1, candidates: counts[discoveryKey(identity.ProviderID, identity.InputID)]}, config, selection)
 		cancel()
 		if err != nil {
 			var typed *Error
@@ -352,7 +370,7 @@ func (s *Service) selectAlternative(ctx context.Context, config Config, warn fun
 			warn(candidate.Identity.ProviderID + ": " + err.Error())
 			continue
 		}
-		if extraHash != "" && choice.hash == extraHash {
+		if extraHash != "" && choice.hash == extraHash || queuedCandidate(catalog.Candidate{Identity: choice.identity, Hash: choice.hash}, selection.queued) {
 			continue
 		}
 		if currentHash != "" && choice.hash == currentHash {
@@ -362,6 +380,18 @@ func (s *Service) selectAlternative(ctx context.Context, config Config, warn fun
 		return choice, nil
 	}
 	return playbackChoice{}, &Error{Code: "selection_failed", Message: "no available image matches the current inputs and filters within the selection budget"}
+}
+
+func candidateCounts(pools []providerPool) map[string]int {
+	counts := map[string]int{}
+	for _, pool := range pools {
+		for _, input := range pool.inputs {
+			if len(input) > 0 {
+				counts[discoveryKey(pool.id, input[0].Identity.InputID)] = len(input)
+			}
+		}
+	}
+	return counts
 }
 
 // discoverMetadata commits each page before requesting the next. Interrupted

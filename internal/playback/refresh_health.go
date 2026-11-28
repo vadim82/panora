@@ -109,7 +109,7 @@ func (s *Service) publishDiscoveryHealth(config Config, jobs map[string]*discove
 			summary.State = "empty"
 		}
 		for _, input := range inputs {
-			health := InputRefreshHealth{ID: input.id, Revision: input.revision, State: "disabled", Interval: input.interval.String()}
+			health := InputRefreshHealth{ID: input.id, Revision: input.revision, State: "disabled"}
 			if p.Enabled && !input.disabled {
 				health.State = "pending"
 				if configWarning != "" {
@@ -118,7 +118,6 @@ func (s *Service) publishDiscoveryHealth(config Config, jobs map[string]*discove
 				}
 				if job := jobs[discoveryKey(p.ID, input.id)]; job != nil {
 					health = job.health
-					health.Interval = job.input.interval.String()
 					health.Retries = inputRetries[discoveryKey(p.ID, input.id)+"/"+input.revision]
 					until := s.retryUntil(catalog.RetryKey{ProviderID: p.ID, InputID: input.id, Revision: input.revision, Scope: "discovery"}, "provider_metadata")
 					if time.Now().Before(until) && job.cancel == nil {
@@ -130,7 +129,7 @@ func (s *Service) publishDiscoveryHealth(config Config, jobs map[string]*discove
 							}
 						}
 					}
-					if job.cancel == nil {
+					if job.cancel == nil && (!job.next.IsZero() || time.Now().Before(until)) {
 						next := maxTime(job.next, until).UTC()
 						health.NextRefresh = &next
 					}

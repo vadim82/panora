@@ -27,8 +27,9 @@ per minute and 500 per day. [Alpha Coders API documentation](https://api.alphaco
   reveals more thumbnails from the pages already checked. Counts reflect
   metadata and can differ from the images ready to play.
 
-Discovery normally refreshes every two hours and reads up to three pages per
-tag or search. It uses the shared discovery scheduler and honors rate limits.
+Discovery reads up to three pages per tag or search when the input needs
+results. It uses the same playback-driven discovery as other providers and
+honors rate limits.
 Panora resolves and downloads originals as needed for playback, using its
 bounded local playback cache.
 
