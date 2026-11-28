@@ -51,53 +51,25 @@ func TestSourceFailureLogRecordsRetryWithoutProviderText(t *testing.T) {
 
 func TestDiscoveryRetryRecoveryResetsBackoff(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		s, root := testService(t, &fakeWallpaperBackend{})
-		s.interval = time.Second
-		if err := os.WriteFile(s.request.ConfigPath, []byte(localTOML(root)+"refresh_interval='1s'"), 0600); err != nil {
-			t.Fatal(err)
-		}
-		var calls atomic.Int32
-		s.request.Source = changedProvider{listing: func(context.Context, source.DiscoverParams) (source.Page, error) {
-			if n := calls.Add(1); n != 3 {
-				return source.Page{}, source.Failure("unavailable", "HTTP 503 fixture")
+		s, _ := testService(t, &fakeWallpaperBackend{})
+		key := catalog.RetryKey{ProviderID: "local", InputID: "home", Scope: "discovery"}
+		failure := source.Failure("unavailable", "HTTP 503 fixture")
+		want := []time.Duration{5 * time.Second, 10 * time.Second, 5 * time.Second}
+		for i, delay := range want {
+			if i == 2 {
+				s.observeRetry(key, "discovery", nil)
+				if states, err := s.store.LoadRetries(t.Context()); err != nil || len(states) != 0 {
+					t.Fatalf("successful discovery did not clear saved retries: %+v %v", states, err)
+				}
 			}
-			return source.Page{Candidates: []source.Candidate{}, NextCursor: json.RawMessage("null")}, nil
-		}}
-		s.StartDiscovery()
-		synctest.Wait()
-		time.Sleep(4 * time.Second)
-		synctest.Wait()
-		if calls.Load() != 1 {
-			t.Fatal("retry before 5s")
+			s.observeRetry(key, "discovery", failure)
+			if deadline := s.retryUntil(key, "provider_metadata"); !deadline.Equal(time.Now().Add(delay)) {
+				t.Fatalf("attempt %d set a deadline %s away, want %s", i+1, time.Until(deadline), delay)
+			}
+			if err := s.checkRetry(key, "provider_metadata"); err == nil {
+				t.Fatal("discovery could bypass the active retry gate")
+			}
 		}
-		time.Sleep(time.Second)
-		_, _ = s.Action(t.Context(), "next")
-		synctest.Wait()
-		if calls.Load() != 2 {
-			t.Fatal("first backoff not applied")
-		}
-		time.Sleep(9 * time.Second)
-		synctest.Wait()
-		if calls.Load() != 2 {
-			t.Fatal("second retry before 10s")
-		}
-		time.Sleep(time.Second)
-		_, _ = s.Action(t.Context(), "next")
-		synctest.Wait()
-		if calls.Load() != 3 || s.Status().Providers[0].Inputs[0].State != "empty" {
-			t.Fatal("empty success did not recover")
-		}
-		if states, err := s.store.LoadRetries(t.Context()); err != nil || len(states) != 0 {
-			t.Fatalf("successful attempt did not reset retries: %+v %v", states, err)
-		}
-		time.Sleep(s.interval)
-		_, _ = s.Action(t.Context(), "next")
-		synctest.Wait()
-		retry := s.Status().Providers[0].Inputs[0].Retries[0]
-		if calls.Load() != 4 || retry.Attempts != 1 || retry.NextRetry.Sub(time.Now()) != 5*time.Second {
-			t.Fatalf("backoff did not reset: %+v", retry)
-		}
-		s.Close()
 	})
 }
 

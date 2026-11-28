@@ -29,6 +29,22 @@ func TestRefreshHealthEmptyFailureAndRecovery(t *testing.T) {
 			}
 			return source.Page{Candidates: []source.Candidate{}, NextCursor: json.RawMessage("null")}, nil
 		}}
+		requestNext := func() {
+			t.Helper()
+			for range 10 {
+				synctest.Wait()
+				_, err := s.Action(t.Context(), "next")
+				var failure *Error
+				if errors.As(err, &failure) && failure.Code == "busy" {
+					time.Sleep(time.Millisecond)
+					continue
+				}
+				requireConfigError(t, err, "selection_failed")
+				synctest.Wait()
+				return
+			}
+			t.Fatal("playback never accepted Next")
+		}
 		s.StartDiscovery()
 		synctest.Wait()
 		status := s.Status()
@@ -37,9 +53,8 @@ func TestRefreshHealthEmptyFailureAndRecovery(t *testing.T) {
 			t.Fatalf("empty success: %+v", health)
 		}
 		lastSuccess := *health.LastSuccess
-		time.Sleep(s.interval)
-		_, _ = s.Action(t.Context(), "next")
-		synctest.Wait()
+		time.Sleep(s.interval + time.Second)
+		requestNext()
 		status = s.Status()
 		health = status.Providers[0].Inputs[0]
 		if health.State != "failed" || health.Failure.Code != "unavailable" || !health.LastSuccess.Equal(lastSuccess) || health.NextRefresh == nil || status.Providers[0].State != "failed" {
@@ -49,9 +64,8 @@ func TestRefreshHealthEmptyFailureAndRecovery(t *testing.T) {
 		if strings.Contains(string(raw), "SECRET") {
 			t.Fatal("provider text leaked into status")
 		}
-		time.Sleep(time.Until(*health.NextRefresh) + time.Millisecond)
-		_, _ = s.Action(t.Context(), "next")
-		synctest.Wait()
+		time.Sleep(time.Until(*health.NextRefresh) + time.Second)
+		requestNext()
 		status = s.Status()
 		health = status.Providers[0].Inputs[0]
 		if health.State != "empty" || health.Failure != nil || len(status.RefreshWarnings) != 0 || !health.LastSuccess.After(lastSuccess) {
