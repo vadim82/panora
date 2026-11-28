@@ -29,11 +29,12 @@ func (s *Service) StartDiscovery() {
 }
 
 type discoverySchedule struct {
-	provider        ProviderConfig
-	input           providerInput
-	next, completed time.Time
-	cancel          context.CancelFunc
-	health          InputRefreshHealth
+	provider ProviderConfig
+	input    providerInput
+	next     time.Time
+	cancel   context.CancelFunc
+	health   InputRefreshHealth
+	used     int
 }
 
 type discoveryResult struct {
@@ -45,8 +46,20 @@ type discoveryResult struct {
 
 func discoveryKey(provider, input string) string { return provider + "/" + input }
 
-// A restart refreshes immediately. Deadlines are completion-relative: missed
-// intervals coalesce into one job, with no catch-up burst after sleep or stalls.
+type discoveryDemand struct {
+	identity  catalog.Identity
+	interval  time.Duration
+	remaining int
+}
+
+// Calls hold actionMu. A pending request is enough to wake the coordinator.
+func (s *Service) requestDiscovery(identity catalog.Identity, remaining int) {
+	select {
+	case s.discoveryDemand <- discoveryDemand{identity, s.interval, remaining}:
+	default:
+	}
+}
+
 func reconcileDiscovery(jobs map[string]*discoverySchedule, config Config, now time.Time) {
 	wanted := map[string]bool{}
 	for _, p := range config.Providers {
@@ -61,16 +74,12 @@ func reconcileDiscovery(jobs map[string]*discoverySchedule, config Config, now t
 			wanted[key] = true
 			old := jobs[key]
 			if old != nil && old.input.revision == input.revision {
-				if old.input.interval != input.interval && !old.completed.IsZero() {
-					old.next = old.completed.Add(input.interval)
-				}
-				old.input.interval = input.interval
 				continue
 			}
 			if old != nil && old.cancel != nil {
 				old.cancel()
 			}
-			jobs[key] = &discoverySchedule{provider: p, input: input, next: now, health: InputRefreshHealth{ID: input.id, Revision: input.revision, State: "pending", Interval: input.interval.String()}}
+			jobs[key] = &discoverySchedule{provider: p, input: input, next: now, health: InputRefreshHealth{ID: input.id, Revision: input.revision, State: "pending"}}
 		}
 	}
 	for key, job := range jobs {
@@ -92,7 +101,7 @@ func (s *Service) runDiscovery() {
 	// Active keys also include canceled obsolete jobs until they have joined.
 	active := map[string]*discoverySchedule{}
 	var latestConfig Config
-	var configWarning string
+	var configWarning, revision string
 	var reclaimCursor catalog.ReclaimCursor
 	finish := func(result discoveryResult) {
 		delete(active, result.key)
@@ -102,17 +111,13 @@ func (s *Service) runDiscovery() {
 		if jobs[result.key] != result.job {
 			return
 		}
-		result.job.completed = time.Now()
-		result.job.next = result.job.completed.Add(result.job.input.interval)
-		if result.err != nil {
-			result.job.next = s.retryUntil(catalog.RetryKey{ProviderID: result.job.provider.ID, InputID: result.job.input.id, Revision: result.job.input.revision, Scope: "discovery"}, "provider_metadata")
-		}
 		job := result.job
 		job.health.Counts = &result.counts
 		job.health.Failure = refreshFailure(result.err)
 		if result.err != nil {
 			job.health.State = "failed"
 		} else {
+			job.used = 0
 			now := time.Now().UTC()
 			job.health.LastSuccess = &now
 			job.health.State = "ready"
@@ -123,7 +128,11 @@ func (s *Service) runDiscovery() {
 		s.notify()
 	}
 	for {
-		config, _, err := LoadConfig(s.request.ConfigPath)
+		config, _, saved, err := ReadConfig(s.request.ConfigPath)
+		if current := configRevision(saved); current != revision {
+			revision = current
+			s.wakeLookahead()
+		}
 		if err != nil {
 			for _, job := range active {
 				job.cancel()
@@ -161,13 +170,14 @@ func (s *Service) runDiscovery() {
 				if job.provider.ID == source.AlphaCodersID && until.IsZero() && job.health.Failure != nil &&
 					(job.health.Failure.Code == "auth_required" || job.health.Failure.Code == "auth_rejected") &&
 					s.request.inputProviderAvailable(job.provider.ID) {
-					job.next = time.Time{}
+					job.next = time.Now()
 				}
-				if active[key] != nil || time.Now().Before(maxTime(job.next, until)) || local && localActive >= 1 || !local && remoteActive >= maxDiscoveryWorkers-1 {
+				if job.next.IsZero() || active[key] != nil || time.Now().Before(maxTime(job.next, until)) || local && localActive >= 1 || !local && remoteActive >= maxDiscoveryWorkers-1 {
 					continue
 				}
 				ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
 				job.cancel = cancel
+				job.next = time.Time{}
 				now := time.Now().UTC()
 				job.health.LastAttempt = &now
 				job.health.Counts = nil
@@ -202,6 +212,20 @@ func (s *Service) runDiscovery() {
 			finish(result)
 		case <-ticker.C:
 			reclaimCursor = s.reclaimCatalog(reclaimCursor)
+		case demand := <-s.discoveryDemand:
+			identity := demand.identity
+			job := jobs[discoveryKey(identity.ProviderID, identity.InputID)]
+			if job == nil || job.input.revision != identity.Revision {
+				continue
+			}
+			job.used++
+			retryKey := catalog.RetryKey{ProviderID: identity.ProviderID, InputID: identity.InputID, Revision: identity.Revision, Scope: "discovery"}
+			if (identity.ProviderID == "local" || demand.remaining-job.used < lookaheadLimit) &&
+				job.cancel == nil && job.next.IsZero() &&
+				s.checkRetry(retryKey, "provider_metadata") == nil &&
+				(job.health.LastSuccess == nil || !time.Now().Before(job.health.LastSuccess.Add(demand.interval))) {
+				job.next = time.Now()
+			}
 		case <-s.discoveryWake:
 		}
 	}

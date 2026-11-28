@@ -23,7 +23,6 @@ type Draft = SearchFilterDraft & {
   order: string;
   max_pages: string;
   top_range: string;
-  refresh_interval: string;
 };
 const providerDefaults = manifestDefaults(wallhavenManifest);
 const defaults: Draft = {
@@ -39,7 +38,6 @@ const defaults: Draft = {
   order: String(providerDefaults.order),
   max_pages: String(providerDefaults.max_pages),
   top_range: String(providerDefaults.top_range),
-  refresh_interval: String(providerDefaults.refresh_interval),
 };
 const values = (search: ConfiguredSearch, inherited: ImageRules): Draft => ({
   ...sourceRuleDraft(search, inherited),
@@ -54,7 +52,6 @@ const values = (search: ConfiguredSearch, inherited: ImageRules): Draft => ({
   order: search.order,
   max_pages: String(search.max_pages),
   top_range: search.top_range,
-  refresh_interval: search.refresh_interval,
 });
 
 const searchCriteria = [
@@ -114,9 +111,6 @@ export function SearchEditor({
     !Number.isInteger(pages) || pages < 1 || pages > 100
       ? 'Use a whole number from 1 to 100 pages per refresh.'
       : undefined;
-  const refreshError = !draft.refresh_interval.trim()
-    ? 'Enter a refresh interval such as 5m.'
-    : undefined;
   const changed = (Object.keys(draft) as (keyof Draft)[]).some(
     (key) => draft[key] !== baseline[key],
   );
@@ -132,10 +126,10 @@ export function SearchEditor({
     if (!canSave) return;
     const origin = document.activeElement;
     setValidation((value) => value + 1);
-    if (pagesError || refreshError) {
+    if (pagesError) {
       setOptions(true);
-      focus.current = pagesError ? 'search-pages' : 'search-refresh';
-      setNotice('Use 1–100 pages per refresh and enter a refresh interval. Your draft is kept.');
+      focus.current = 'search-pages';
+      setNotice('Use 1–100 pages per refresh. Your draft is kept.');
       return;
     }
     const ruleError = sourceRuleError(draft, config.rules);
@@ -159,8 +153,6 @@ export function SearchEditor({
     if (!existing || draft.order !== baseline.order) edit.order = draft.order;
     if (!existing || draft.max_pages !== baseline.max_pages) edit.max_pages = pages;
     if (!existing || draft.top_range !== baseline.top_range) edit.top_range = draft.top_range;
-    if (!existing || draft.refresh_interval !== baseline.refresh_interval)
-      edit.refresh_interval = draft.refresh_interval;
     Object.assign(edit, sourceRulePatch(draft, baseline, Boolean(existing)));
     if (lock.current) return;
     lock.current = true;
@@ -347,12 +339,11 @@ export function SearchEditor({
             group={wallhavenGroup('advanced')}
             values={{ ...draft }}
             render={(field: EditorField) => {
-              const key = field.key as 'order' | 'top_range' | 'max_pages' | 'refresh_interval';
+              const key = field.key as 'order' | 'top_range' | 'max_pages';
               const ids = {
                 order: 'search-order',
                 top_range: 'search-toprange',
                 max_pages: 'search-pages',
-                refresh_interval: 'search-refresh',
               };
               return (
                 <ProviderField
@@ -360,15 +351,7 @@ export function SearchEditor({
                   id={ids[key]}
                   field={field}
                   value={draft[key]}
-                  error={
-                    !validation
-                      ? undefined
-                      : key === 'max_pages'
-                        ? pagesError
-                        : key === 'refresh_interval'
-                          ? refreshError
-                          : undefined
-                  }
+                  error={validation && key === 'max_pages' ? pagesError : undefined}
                   onChange={(value) => edit(key, String(value))}
                 />
               );

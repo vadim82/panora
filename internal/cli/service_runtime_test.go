@@ -181,18 +181,15 @@ func TestCachedPlaybackSurvivesUnavailableFolder(t *testing.T) {
 	}
 }
 
-func TestPausedDiscoveryRecoversRestoredLocalFolder(t *testing.T) {
+func TestManualNextRecoversRestoredLocalFolderWhilePaused(t *testing.T) {
 	options, socket := serviceFixture(t)
+	options.Interval = time.Second
 	config, _, err := playback.LoadConfig(options.Request.ConfigPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	provider := &config.Providers[0]
-	provider.RefreshInterval = "1s"
-	root := provider.Folders[0].Path
-	healthyRoot := t.TempDir()
-	writeScanImage(t, filepath.Join(healthyRoot, "healthy.png"), 3, 3)
-	provider.Folders = append(provider.Folders, playback.FolderConfig{ID: "healthy", Path: healthyRoot})
+	config.Providers[0].RefreshInterval = "1s"
+	root := config.Providers[0].Folders[0].Path
 	saved, err := toml.Marshal(config)
 	if err != nil {
 		t.Fatal(err)
@@ -200,85 +197,61 @@ func TestPausedDiscoveryRecoversRestoredLocalFolder(t *testing.T) {
 	if err := os.WriteFile(options.Request.ConfigPath, saved, 0600); err != nil {
 		t.Fatal(err)
 	}
-	// The service fixture launches the bundled provider as a real subprocess.
 	launchService(t, options, socket, func(context.Context) (desktop.WallpaperBackend, error) {
 		return &fakeWallpaperBackend{}, nil
 	})
-	awaitHealth := func(match func(map[string]playback.InputRefreshHealth) bool) (control.Status, map[string]playback.InputRefreshHealth) {
+	awaitHealth := func(state string) playback.InputRefreshHealth {
 		t.Helper()
-		ctx, cancel := context.WithTimeout(t.Context(), 12*time.Second)
-		defer cancel()
-		ticker := time.NewTicker(20 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			status, err := control.Request(ctx, socket, "")
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			status, err := control.Request(t.Context(), socket, "")
 			if err != nil {
 				t.Fatal(err)
 			}
-			inputs := make(map[string]playback.InputRefreshHealth)
-			for _, provider := range status.Providers {
-				for _, input := range provider.Inputs {
-					inputs[input.ID] = input
+			if len(status.Providers) > 0 && len(status.Providers[0].Inputs) > 0 {
+				if input := status.Providers[0].Inputs[0]; input.State == state {
+					return input
 				}
 			}
-			if match(inputs) {
-				return status, inputs
-			}
-			select {
-			case <-ctx.Done():
-				t.Fatalf("expected discovery state did not arrive: %+v", inputs)
-			case <-ticker.C:
-			}
+			time.Sleep(20 * time.Millisecond)
 		}
+		t.Fatalf("expected discovery state %s", state)
+		return playback.InputRefreshHealth{}
 	}
-	_, initial := awaitHealth(func(inputs map[string]playback.InputRefreshHealth) bool {
-		return inputs["home"].State == "ready" && inputs["healthy"].State == "ready"
-	})
+	initial := awaitHealth("ready")
+	cliStatus(t, socket, "next")
 	before := cliStatus(t, socket, "next")
-	if before.Current == nil || !before.Paused || before.HistoryLength != 1 {
-		t.Fatalf("failed to seed paused playback: %+v", before)
-	}
 	aside := filepath.Join(t.TempDir(), "moved")
 	if err := os.Rename(root, aside); err != nil {
 		t.Fatal(err)
 	}
-	_, failed := awaitHealth(func(inputs map[string]playback.InputRefreshHealth) bool {
-		return inputs["home"].State == "failed"
-	})
-	outage := failed["home"]
-	if outage.Failure == nil || outage.Failure.Code != "unavailable" || outage.LastAttempt == nil ||
+	time.Sleep(time.Until(initial.LastSuccess.Add(options.Interval)) + 20*time.Millisecond)
+	if idle := awaitHealth("ready"); !idle.LastAttempt.Equal(*initial.LastAttempt) {
+		t.Fatal("legacy interval refreshed a paused input")
+	}
+	failedPlay := cliStatus(t, socket, "next")
+	outage := awaitHealth("failed")
+	if outage.Failure == nil || outage.Failure.Code != "unavailable" ||
 		len(outage.Retries) != 1 || outage.Retries[0].Attempts != 1 || outage.NextRefresh == nil {
 		t.Fatalf("expected temporary discovery failure: %+v", outage)
 	}
-	retry := outage.Retries[0].NextRetry
-	if delay := retry.Sub(*outage.LastAttempt); delay < 5*time.Second || delay > 8*time.Second || !retry.Equal(*outage.NextRefresh) {
-		t.Fatalf("unexpected initial retry deadline: %v in %+v", delay, outage)
-	}
-	writeScanImage(t, filepath.Join(healthyRoot, "discovered-during-outage.png"), 4, 4)
-	awaitHealth(func(inputs map[string]playback.InputRefreshHealth) bool {
-		healthy := inputs["healthy"]
-		return healthy.State == "ready" && healthy.Counts != nil && healthy.Counts.Inspected == 2
-	})
 	if err := os.Rename(aside, root); err != nil {
 		t.Fatal(err)
 	}
-	if !time.Now().Before(retry) {
-		t.Fatal("healthy input did not refresh before the missing folder's retry")
+	time.Sleep(time.Until(*outage.NextRefresh) + 20*time.Millisecond)
+	stillFailed := awaitHealth("failed")
+	if !stillFailed.LastAttempt.Equal(*outage.LastAttempt) {
+		t.Fatal("idle service retried without playback demand")
 	}
-	after, recovered := awaitHealth(func(inputs map[string]playback.InputRefreshHealth) bool {
-		return inputs["home"].State == "ready"
-	})
-	ready := recovered["home"]
-	if ready.LastAttempt == nil || ready.LastAttempt.Before(retry) || ready.Failure != nil || len(ready.Retries) != 0 ||
-		ready.Revision != initial["home"].Revision || ready.Counts == nil || ready.Counts.Inspected != 2 {
-		t.Fatalf("same input did not clear its retry at normal discovery: %+v", ready)
+	after := cliStatus(t, socket, "next")
+	recovered := awaitHealth("ready")
+	if recovered.Failure != nil || len(recovered.Retries) != 0 || recovered.Revision != initial.Revision ||
+		recovered.Counts == nil || recovered.Counts.Inspected != 2 {
+		t.Fatalf("same input did not recover on Next: %+v", recovered)
 	}
-	if after.InstanceID != before.InstanceID || !after.Paused || after.NextAt != nil || after.Current == nil ||
-		after.Current.ID != before.Current.ID || after.HistoryLength != before.HistoryLength {
-		t.Fatalf("paused discovery changed playback: before %+v, after %+v", before, after)
-	}
-	if _, err := os.Stat(after.Current.Path); err != nil {
-		t.Fatalf("cached wallpaper lost during recovery: %v", err)
+	if after.InstanceID != before.InstanceID || !after.Paused || after.NextAt != nil ||
+		failedPlay.Current == nil || after.Current == nil || after.HistoryLength != before.HistoryLength+2 {
+		t.Fatalf("cached playback did not survive discovery recovery: before %+v, after %+v", before, after)
 	}
 	if current, err := os.ReadFile(options.Request.ConfigPath); err != nil || !bytes.Equal(saved, current) {
 		t.Fatalf("recovery changed the saved configuration: %v", err)

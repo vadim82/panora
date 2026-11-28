@@ -54,6 +54,7 @@ type Service struct {
 	retryMu                sync.Mutex
 	retries                map[catalog.RetryKey]catalog.RetryState
 	discoveryWake          chan struct{}
+	discoveryDemand        chan discoveryDemand
 	theme                  themeRuntime
 	lookahead              lookaheadState // Guarded by actionMu.
 	lookaheadWake          chan struct{}
@@ -119,27 +120,28 @@ func newService(ctx context.Context, options ServiceOptions, resolve Resolver, c
 	}
 	serviceCtx, cancel := context.WithCancel(ctx)
 	s := &Service{
-		instanceID:    rand.Text(),
-		status:        Status{SetupRequired: !config.HasEnabledInputs()},
-		sourceNames:   configuredSourceNames(config),
-		exclusions:    exclusions,
-		currentHash:   currentHash,
-		currentImage:  currentImage,
-		retries:       retries,
-		discoveryWake: make(chan struct{}, 1),
-		discoveryDone: make(chan struct{}),
-		lookaheadWake: make(chan struct{}, 1),
-		cache:         imageCache,
-		store:         store,
-		ctx:           serviceCtx,
-		cancel:        cancel,
-		request:       request,
-		resolve:       resolve,
-		backend:       options.Backend,
-		interval:      options.Interval,
-		state:         state,
-		wake:          make(chan struct{}, 1),
-		fatal:         make(chan error, 1),
+		instanceID:      rand.Text(),
+		status:          Status{SetupRequired: !config.HasEnabledInputs()},
+		sourceNames:     configuredSourceNames(config),
+		exclusions:      exclusions,
+		currentHash:     currentHash,
+		currentImage:    currentImage,
+		retries:         retries,
+		discoveryWake:   make(chan struct{}, 1),
+		discoveryDemand: make(chan discoveryDemand, lookaheadLimit),
+		discoveryDone:   make(chan struct{}),
+		lookaheadWake:   make(chan struct{}, 1),
+		cache:           imageCache,
+		store:           store,
+		ctx:             serviceCtx,
+		cancel:          cancel,
+		request:         request,
+		resolve:         resolve,
+		backend:         options.Backend,
+		interval:        options.Interval,
+		state:           state,
+		wake:            make(chan struct{}, 1),
+		fatal:           make(chan error, 1),
 		theme: themeRuntime{
 			home:         defaultThemeHome(),
 			done:         make(chan struct{}),
@@ -425,7 +427,7 @@ func (s *Service) perform(ctx context.Context, action string, options actionOpti
 		err = s.changeImage(opCtx, preparation, offset, navigation)
 	case "replay":
 		err = s.replayHistory(preparation, options.historyID)
-		s.finishLookahead(false, false)
+		s.finishLookahead(0)
 	case "exclude", "undo-exclude":
 		err = s.changeExclusion(opCtx, action, 0)
 	case "restore-exclusion":
@@ -490,20 +492,21 @@ type playbackChoice struct {
 	path, sourceID string
 	historyIndex   int // -1 denotes a fresh random selection.
 	image          *CurrentImage
+	candidates     int
 }
 
-func (s *Service) chooseImage(ctx context.Context, offset int) (playbackChoice, bool, *Error) {
+func (s *Service) chooseImage(ctx context.Context, offset int) (playbackChoice, int, *Error) {
 	s.warnings = nil
 	config, _, saved, err := ReadConfig(s.request.ConfigPath)
 	if err != nil {
-		return playbackChoice{}, false, invalidSavedConfiguration()
+		return playbackChoice{}, 0, invalidSavedConfiguration()
 	}
 	s.observeSourceConfig(config)
 	if !config.HasEnabledInputs() {
-		return playbackChoice{}, false, &Error{Code: "setup_required", Message: "add or enable a wallpaper source to begin playback"}
+		return playbackChoice{}, 0, &Error{Code: "setup_required", Message: "add or enable a wallpaper source to begin playback"}
 	}
 	if resolution := s.availableSourceRules(ctx, config); resolution.State != "resolved" {
-		return playbackChoice{}, false, unresolvedRuleError(resolution)
+		return playbackChoice{}, 0, unresolvedRuleError(resolution)
 	}
 	var prepared playbackChoice
 	if offset > 0 {
@@ -520,7 +523,7 @@ func (s *Service) chooseImage(ctx context.Context, offset int) (playbackChoice, 
 	}
 	for index := s.state.Cursor + offset; index >= 0 && index < len(s.state.History); index += step {
 		if err := ctx.Err(); err != nil {
-			return playbackChoice{}, false, &Error{Code: "canceled", Message: err.Error()}
+			return playbackChoice{}, 0, &Error{Code: "canceled", Message: err.Error()}
 		}
 		entry := s.state.History[index]
 		choice, err := s.materializeChoice(ctx, playbackChoice{path: entry.Path, sourceID: entry.SourceID, historyIndex: index, identity: entry.Identity}, config)
@@ -528,15 +531,18 @@ func (s *Service) chooseImage(ctx context.Context, offset int) (playbackChoice, 
 			warn(fmt.Sprintf("Skipping %s: %v", entry.Path, err))
 			continue
 		}
-		return choice, offset == 1 && prepared.historyIndex == index && prepared.identity == choice.identity && prepared.hash == choice.hash, nil
+		if prepared.historyIndex == index && prepared.identity == choice.identity && prepared.hash == choice.hash {
+			return choice, offset, nil
+		}
+		return choice, 0, nil
 	}
 	if offset < 0 {
-		return playbackChoice{}, false, &Error{Code: "no_previous", Message: "no earlier available image matches the current folders and filters"}
+		return playbackChoice{}, 0, &Error{Code: "no_previous", Message: "no earlier available image matches the current folders and filters"}
 	}
 	if prepared.historyIndex == -1 && prepared.identity.ImageID > 0 {
 		choice, err := s.materializeChoice(ctx, prepared, config)
 		if err == nil && choice.hash == prepared.hash {
-			return choice, offset == 1, nil
+			return choice, offset, nil
 		}
 	}
 	if offset > 1 {
@@ -547,20 +553,26 @@ func (s *Service) chooseImage(ctx context.Context, offset int) (playbackChoice, 
 				current.identity, current.hash = s.state.History[s.state.Cursor].Identity, s.currentHash
 			}
 			choice, selectionErr := s.selectAlternative(ctx, config, warn, s.selectionContext(), current, first, true)
-			return choice, false, selectionErr
+			return choice, 0, selectionErr
 		}
 	}
 	choice, selectionErr := s.selectFresh(ctx, config, warn)
-	return choice, false, selectionErr
+	return choice, 0, selectionErr
 }
 
 func (s *Service) changeImage(ctx, preparation context.Context, offset int, navigation *navigationWork) *Error {
 	choice, prepared, selectionErr := s.chooseImage(preparation, offset)
 	if selectionErr == nil {
 		selectionErr = s.applyPreparedChoice(ctx, preparation, choice, navigation)
+		if selectionErr == nil && choice.historyIndex < 0 {
+			s.requestDiscovery(choice.identity, choice.candidates)
+		}
 	}
 	if navigation == nil || preparation.Err() == nil {
-		s.finishLookahead(prepared, selectionErr == nil)
+		if selectionErr != nil {
+			prepared = 0
+		}
+		s.finishLookahead(prepared)
 	}
 	return selectionErr
 }

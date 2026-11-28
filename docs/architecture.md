@@ -178,20 +178,18 @@ Selection makes at most 32 attempts of up to four seconds each. See
 
 ## Upcoming wallpaper preparation
 
-The playback service warms up to two choices after it has an accepted wallpaper,
-including while rotation is paused. It uses eligible forward History first, then
-draws from committed discovery candidates using the saved rotation mode. It
-validates the bytes and warms the normal thumbnail cache. Both choices share the
-playback cache and the existing provider retry budgets, with an eight-second
-deadline per preparation pass. The current wallpaper and any first prepared
-choice are protected during preparation of the second.
+The playback service queues up to ten upcoming choices after it has an accepted
+wallpaper, preparing up to five originals within the cache budget. Eligible
+forward History takes priority. Fresh choices use the saved rotation mode and
+committed catalog. Only prepared choices are exposed for preview. Preparing
+them validates image bytes, warms thumbnails, and protects the current and
+prepared originals during the preparation pass.
 
-The background worker snapshots the accepted cursor, exclusions, backend and
-saved configuration. Navigation cancels an in-progress warmup before entering
-the desktop path. Next rechecks the prepared selection and current rules, and an
-accepted Next can promote the second slot immediately. Configuration, cursor,
-exclusion or observed theme changes invalidate old preparation. The queue is
-in-memory and dies with the service. Preparing or reading previews leaves
+The worker wakes on playback, discovery completion, and configuration or theme
+changes. Navigation cancels in-progress preparation before entering the
+desktop path. Next and scheduled rotation validate the ready choice again and
+promote remaining slots after acknowledgement. Settings, exclusions or theme
+changes can invalidate selections. The queue is held in memory and leaves
 accepted history, the desktop and the rotation schedule alone.
 
 The native window keeps one unapplied navigation destination. The service
@@ -202,26 +200,23 @@ the existing uncertain intent and clears the window's queued destination.
 
 ## Background discovery
 
-After acquiring the control socket, one coordinator refreshes enabled inputs,
-including while rotation is paused. Each input's next refresh is measured from
-completion of its previous job. [Configuration](configuration.md#refresh-schedules)
-defines `refresh_interval` and restart behavior. Missed deadlines produce one
-refresh, not a burst of catch-up jobs. Discovery never applies images.
+One coordinator discovers eligible inputs on startup or when their revision
+changes. After the initial pass, it handles demand from scheduled wallpaper
+changes and **Next**. A fresh accepted choice uses part of the selected input's
+candidate inventory and can request a refresh when it runs low. An empty
+catalog can request discovery without applying an image. The existing wallpaper
+interval bounds successful refresh frequency per input. Backoff blocks early
+requests. Discovery never applies wallpapers.
 
-At most four jobs run concurrently: one local and three remote. Reserving local
-capacity leaves the subprocess client's second slot available to playback
-resolution. Inputs wait in deadline/key order, so a repeatedly due input cannot
-jump ahead of older work. Each job has a three-second timeout and a page budget
-of `max(1, 1000 / enabled_input_count)`.
+At most four jobs run concurrently: one local and three remote. Inputs wait in
+request order with a stable key tie-breaker. Each job has a three-second
+timeout and a page budget of `max(1, 1000 / enabled_input_count)`.
 
-The coordinator checks discovery settings every second, cancels obsolete jobs,
-and waits for canceled work to finish before reusing its slot or input key.
-Each page rechecks the enabled input revision before its catalog transaction.
-The revision is specific to each input's provider settings and effective image
-rules. Edits to siblings and schedule changes leave that input's catalog intact.
-Invalid configuration cancels discovery until corrected; committed catalog and
-playback history remain. Schedule edits recalculate the next deadline from the
-last completion; active jobs finish under the new cadence.
+The coordinator checks saved discovery settings every second and cancels
+obsolete jobs. Checking settings does not call providers. Each page rechecks
+the enabled input revision before committing. Edits to siblings leave that
+input's catalog intact. Invalid configuration cancels work while preserving
+committed candidates and history.
 
 Playback reads committed candidates without waiting for refresh. While discovery
 runs, an empty matching catalog returns `discovery_pending`; rotation retries

@@ -14,12 +14,12 @@ func refreshHealth(providers []playback.ProviderRefreshHealth) string {
 		fmt.Fprintf(&out, "Provider %s: %s (%d inputs)\n", terminalText(provider.ID), terminalText(provider.State), provider.TotalInputs)
 		appendRetries(&out, provider.Retries)
 		for _, input := range provider.Inputs {
-			fmt.Fprintf(&out, "  %s: %s; refresh interval %s\n", terminalText(input.ID), terminalText(input.State), humanDuration(input.Interval))
+			fmt.Fprintf(&out, "  %s: %s\n", terminalText(input.ID), terminalText(input.State))
 			for _, stamp := range []struct {
 				label string
 				value *time.Time
 			}{
-				{"Last attempt", input.LastAttempt}, {"Last success", input.LastSuccess}, {"Next refresh", input.NextRefresh},
+				{"Last attempt", input.LastAttempt}, {"Last success", input.LastSuccess}, {"Discovery eligible", input.NextRefresh},
 			} {
 				if stamp.value != nil {
 					fmt.Fprintf(&out, "    %s: %s\n", stamp.label, stamp.value.Format(time.RFC3339))

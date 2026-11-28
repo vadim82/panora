@@ -154,7 +154,7 @@ it('points preview validation at its invalid source dimension instead of leaving
   expect(api.UpdateFolder).not.toHaveBeenCalled();
 });
 
-it('focuses the first invalid search option and keeps native constraint errors associated after correction', async () => {
+it('focuses an invalid page limit and omits the old discovery interval', async () => {
   const api = installBridge(),
     user = await ready();
   await user.click(screen.getByRole('button', { name: 'Add source options' }));
@@ -162,18 +162,12 @@ it('focuses the first invalid search option and keeps native constraint errors a
   await user.type(screen.getByRole('textbox', { name: 'Search terms (optional)' }), 'mountains');
   await user.click(screen.getByRole('button', { name: 'More settings' }));
   const pages = screen.getByRole('spinbutton', { name: 'Pages per refresh' });
-  const refresh = screen.getByRole('textbox', { name: 'Refresh interval' });
+  expect(screen.queryByRole('textbox', { name: 'Refresh interval' })).not.toBeInTheDocument();
   await user.clear(pages);
-  await user.clear(refresh);
   await user.click(screen.getByRole('button', { name: 'More settings' }));
   await user.click(screen.getByRole('button', { name: 'Enable Wallhaven and add source' }));
   await waitFor(() => expect(pages).toHaveFocus());
   expect(pages).toHaveAccessibleDescription('Use a whole number from 1 to 100 pages per refresh.');
-  expect(refresh).toHaveAccessibleDescription('Enter a refresh interval such as 5m.');
-  await user.type(pages, '3');
-  await user.click(screen.getByRole('button', { name: 'Enable Wallhaven and add source' }));
-  await waitFor(() => expect(refresh).toHaveFocus());
-  expect(pages).not.toHaveAttribute('aria-invalid', 'true');
   expect(api.AddSearch).not.toHaveBeenCalled();
   expect(api.Action).not.toHaveBeenCalled();
 });

@@ -2,8 +2,7 @@
 
 Panora rotates JPEG, PNG and static WebP images from local folders, saved SFW
 Wallhaven and Alpha Coders searches, and the active Omarchy theme. The CLI and native client share
-one service for discovery, settings, playback history and exclusions. Discovery
-continues while rotation is paused.
+one service for settings, playback history, exclusions and on-demand discovery.
 
 ## Platform coverage
 

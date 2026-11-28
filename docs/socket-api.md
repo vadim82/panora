@@ -215,7 +215,7 @@ files only). For example:
 
 Folder summaries include the derived `name`, `path`, effective `enabled`, saved
 `input_enabled`, nullable depth override `max_depth`, `effective_max_depth` and
-effective `refresh_interval`. Provider-specific validation and discovery stay in
+legacy `refresh_interval` for compatibility. Provider-specific validation and discovery stay in
 the service. See [folder behavior](configuration.md#local-folder-management).
 
 A preference PATCH supplies `revision` and at least one of the following fields.
@@ -518,7 +518,7 @@ additive fields of the version-1 API.
 | Scope | Fields and meaning |
 | --- | --- |
 | Provider | Enabled state, summary state, total/omitted input counts and input details; at most 512 input details across providers |
-| Input | `id`, discovery `revision`, `state`, effective `interval`, nullable `last_attempt`, `last_success`, `next_refresh`, `counts`, optional sanitized `failure` |
+| Input | `id`, discovery `revision`, `state`, legacy `interval` (empty for on-demand discovery), nullable `last_attempt`, `last_success`, `next_refresh` (earliest eligible discovery time when pending or rate-limited), `counts`, optional sanitized `failure` |
 | Counts | `committed_metadata_in_attempt`: pages and entries from the latest attempt, including partial progress; `null` while running. `known_eligible` remains `null` for this metadata-only scope |
 | Retry | `scope`, `attempts`, `next_retry`, sanitized failure stage/code/message; materialization also has `affected_images` and earliest active deadline. At most two scopes per provider/input |
 

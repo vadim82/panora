@@ -196,13 +196,8 @@ func TestRefreshIntervalSettings(t *testing.T) {
 	if config.InputRevision("local", "home") != original.InputRevision("local", "home") {
 		t.Fatal("scheduling changed discovery identity")
 	}
-	inputs := providerInputs(config.Providers[0], config.Filters.MaxDepth, sourceDefaultRules(config))
-	if inputs[0].interval.String() != "10m0s" {
-		t.Fatalf("input override: %v", inputs[0].interval)
-	}
-	config.Providers[0].Folders[0].RefreshInterval = ""
-	if got := providerInputs(config.Providers[0], 2, sourceDefaultRules(config))[0].interval; got.String() != "2h0m0s" {
-		t.Fatalf("provider default: %v", got)
+	if config.Providers[0].RefreshInterval != "2h" || config.Providers[0].Folders[0].RefreshInterval != "10m" {
+		t.Fatal("legacy intervals were lost on read")
 	}
 }
 

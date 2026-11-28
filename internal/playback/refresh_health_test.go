@@ -17,6 +17,7 @@ import (
 func TestRefreshHealthEmptyFailureAndRecovery(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s, root := testService(t, &fakeWallpaperBackend{})
+		s.interval = 2 * time.Second
 		body := localTOML(root) + "refresh_interval='2s'\n"
 		if err := os.WriteFile(s.request.ConfigPath, []byte(body), 0600); err != nil {
 			t.Fatal(err)
@@ -36,7 +37,8 @@ func TestRefreshHealthEmptyFailureAndRecovery(t *testing.T) {
 			t.Fatalf("empty success: %+v", health)
 		}
 		lastSuccess := *health.LastSuccess
-		time.Sleep(2 * time.Second)
+		time.Sleep(s.interval)
+		_, _ = s.Action(t.Context(), "next")
 		synctest.Wait()
 		status = s.Status()
 		health = status.Providers[0].Inputs[0]
@@ -48,6 +50,7 @@ func TestRefreshHealthEmptyFailureAndRecovery(t *testing.T) {
 			t.Fatal("provider text leaked into status")
 		}
 		time.Sleep(5 * time.Second)
+		_, _ = s.Action(t.Context(), "next")
 		synctest.Wait()
 		status = s.Status()
 		health = status.Providers[0].Inputs[0]
