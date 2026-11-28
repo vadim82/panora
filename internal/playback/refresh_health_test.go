@@ -42,14 +42,14 @@ func TestRefreshHealthEmptyFailureAndRecovery(t *testing.T) {
 		synctest.Wait()
 		status = s.Status()
 		health = status.Providers[0].Inputs[0]
-		if health.State != "failed" || health.Failure.Code != "unavailable" || !health.LastSuccess.Equal(lastSuccess) || status.Providers[0].State != "failed" {
+		if health.State != "failed" || health.Failure.Code != "unavailable" || !health.LastSuccess.Equal(lastSuccess) || health.NextRefresh == nil || status.Providers[0].State != "failed" {
 			t.Fatalf("failure: %+v", health)
 		}
 		raw, _ := json.Marshal(status)
 		if strings.Contains(string(raw), "SECRET") {
 			t.Fatal("provider text leaked into status")
 		}
-		time.Sleep(5 * time.Second)
+		time.Sleep(time.Until(*health.NextRefresh) + time.Millisecond)
 		_, _ = s.Action(t.Context(), "next")
 		synctest.Wait()
 		status = s.Status()
