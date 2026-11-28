@@ -2,8 +2,8 @@ class Panora < Formula
   desc "Wallpaper rotation and playback controls"
   homepage "https://github.com/vadim82/panora"
   url "https://github.com/vadim82/panora.git",
-      tag:      "v0.8.1",
-      revision: "0b324b558f7fc059abf9c90997d8db6d29fd4eb7"
+      tag:      "v0.8.2",
+      revision: "bb61eaefe4977701aed0e773e3385496447c6d75"
   license "MIT"
 
   depends_on "corepack" => :build
