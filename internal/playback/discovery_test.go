@@ -250,7 +250,7 @@ func TestScheduledPlaybackRequestsDiscoveryOnlyForItsSource(t *testing.T) {
 		}
 		done := make(chan struct{})
 		go func() { defer close(done); s.Run(nil) }()
-		time.Sleep(s.interval)
+		time.Sleep(s.interval + time.Second)
 		synctest.Wait()
 		if localCalls.Load() != 2 || remoteCalls.Load() != 1 || s.Status().HistoryLength != 1 {
 			t.Fatalf("scheduled change queried unselected inputs or was missed: local=%d remote=%d history=%d", localCalls.Load(), remoteCalls.Load(), s.Status().HistoryLength)
