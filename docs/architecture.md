@@ -135,13 +135,13 @@ and platform-specific dependencies behind the adapter boundary.
 2. For a fresh choice, read committed candidates for the enabled input revisions.
    Independent background discovery commits each page with its next cursor.
    A slow refresh does not hold the playback action lock. Exclude Wallhaven
-   candidates with known nonmatching dimensions from the draw. Previously
-   decoded dimensions take precedence over the search listing's dimensions.
-   Shuffle also uses known dimensions for other HTTPS candidates. Local
-   discovery reads bounded image headers before committing each page. Selection
-   uses those dimensions for uncached local candidates and checks actual bytes
-   only for the selected candidates. Previously cached local images can be
-   rematerialized and checked again after eviction.
+   and Alpha Coders candidates with known nonmatching dimensions from the
+   draw. Previously decoded dimensions take precedence over the search
+   listing's dimensions. Shuffle also uses known dimensions for other HTTPS
+   candidates. Local discovery reads bounded image headers before committing
+   each page. Selection uses those dimensions for uncached local candidates and
+   checks actual bytes only for the selected candidates. Previously cached
+   local images can be rematerialized and checked again after eviction.
 3. Avoid the current identity and known matching content hashes while alternatives
    remain. **Balance sources** chooses a provider uniformly, then an input
    uniformly, then a candidate. **Shuffle all images** chooses uniformly from
