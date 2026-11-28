@@ -195,6 +195,7 @@ func (s *Service) selectionPools(ctx context.Context, config Config, budget int,
 		if !p.Enabled || source.ValidInputProviderID(p.ID) && !s.request.inputProviderAvailable(p.ID) {
 			continue
 		}
+		filterRemoteDimensions := shuffle || p.ID == "wallhaven" || p.ID == source.AlphaCodersID
 		group := providerPool{id: p.ID}
 		for _, configuredInput := range providerInputs(p, config.Filters.MaxDepth, sourceDefaultRules(config)) {
 			if configuredInput.disabled {
@@ -226,7 +227,7 @@ func (s *Service) selectionPools(ctx context.Context, config Config, budget int,
 				// Retained dimensions can outlive an evicted copy of a mutable
 				// local original. Let materialization reopen and validate it.
 				remote := content == nil || content.Kind == "https"
-				if (p.ID == "wallhaven" || shuffle && remote) && !matchesKnownDimensions(c, rules, inputRatio) {
+				if filterRemoteDimensions && remote && !matchesKnownDimensions(c, rules, inputRatio) {
 					continue
 				}
 				if p.ID == "local" && c.Hash == "" {

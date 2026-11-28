@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/vadim82/panora/internal/catalog"
@@ -58,6 +59,70 @@ func TestDiscoveryOutageUsesCommittedCandidates(t *testing.T) {
 
 func metadataCandidate(id string) source.Candidate {
 	return source.Candidate{ID: id, MediaKind: "image", Ref: json.RawMessage(`{"id":"reference"}`), Content: &source.Content{MediaKind: "image", Kind: "https", URL: "https://example.org/" + id + ".png"}, Dimensions: &source.Dimensions{Width: 5120, Height: 1440}, Attribution: &source.Attribution{PageURL: "https://example.org/view/" + id, Author: "Artist"}}
+}
+
+type connectedAlphaCoders struct {
+	source.Provider
+	source.AlphaEditor
+}
+
+func (connectedAlphaCoders) Connected() bool { return true }
+
+func TestBalanceSourcesFiltersAlphaCodersBeforeProviderDraw(t *testing.T) {
+	service, _, _ := configurationFixture(t, `version=1
+[filters]
+min_width=2560
+min_height=720
+ratio="32:9"
+[[providers]]
+id="alpha-coders"
+enabled=true
+[[providers.inputs]]
+id="abyss"
+settings_json='{}'
+[[providers]]
+id="wallhaven"
+enabled=true
+[[providers.searches]]
+id="nature"
+query="nature"
+`)
+	service.request.Providers = map[string]source.Provider{source.AlphaCodersID: connectedAlphaCoders{}}
+	config, _, err := LoadConfig(service.request.ConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	add := func(providerID, inputID string, candidate source.Candidate) {
+		t.Helper()
+		if _, err := service.store.EnsureImage(t.Context(), providerID, inputID, config.InputRevision(providerID, inputID), "", candidate); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mismatch := metadataCandidate("standard")
+	mismatch.Content = nil
+	mismatch.Dimensions = &source.Dimensions{Width: 3840, Height: 2160}
+	add(source.AlphaCodersID, "abyss", mismatch)
+	match := metadataCandidate("ultrawide")
+	match.Content = nil
+	add(source.AlphaCodersID, "abyss", match)
+	add("wallhaven", "nature", metadataCandidate("mountains"))
+
+	pools, err := service.candidatePools(t.Context(), config, maxCatalogCandidates, func(string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]string{}
+	for _, pool := range pools {
+		for _, input := range pool.inputs {
+			for _, candidate := range input {
+				got[pool.id] = append(got[pool.id], candidate.Candidate.ID)
+			}
+		}
+	}
+	want := map[string][]string{source.AlphaCodersID: {"ultrawide"}, "wallhaven": {"mountains"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("candidates entering the provider draw = %v, want %v", got, want)
+	}
 }
 
 func TestMetadataDiscoveryResumesCommittedCursorAfterRestart(t *testing.T) {

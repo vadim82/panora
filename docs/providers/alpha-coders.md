@@ -18,8 +18,9 @@ per minute and 500 per day. [Alpha Coders API documentation](https://api.alphaco
   dimensions. **Similar to my screen** uses one detected display and defaults
   to 5% tolerance. Set the percentage to 0 for the exact shape. Panora pushes
   the minimum dimensions, a single exact resolution, and the similar-screen
-  range to Alpha Coders when available. Playback checks the downloaded image
-  again and uses the configured Fit or Crop mode.
+  range to Alpha Coders when available. Playback filters known dimensions
+  before choosing a provider, checks the downloaded image again, and uses
+  the configured Fit or Crop mode.
 - **Check results** checks up to two pages per tag or search. The combined
   count is distinct across tags and the per-tag counts can overlap. A check
   tells you when only a partial result was available. **Show more previews**
