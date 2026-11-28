@@ -149,7 +149,13 @@ func TestLookaheadKeepsTenDistinctChoicesAndWarmsOnlyFive(t *testing.T) {
 		return true
 	})
 	for i, choice := range ready {
-		status, err := s.Action(t.Context(), "next")
+		var status Status
+		var err error
+		awaitCondition(t, func() bool {
+			status, err = s.Action(t.Context(), "next")
+			var failure *Error
+			return !errors.As(err, &failure) || failure.Code != "busy"
+		})
 		if err != nil || status.Current == nil || status.Current.ImageID != choice.identity.ImageID || !status.Paused {
 			t.Fatalf("Next did not consume warmed slot %d: %+v %v", i, status, err)
 		}
